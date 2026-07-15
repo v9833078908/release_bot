@@ -39,7 +39,7 @@ async def draft_release_notes(api_key: str, model: str, commits: list[Commit],
                               hint: str | None = None) -> Post:
     payload = {
         "model": model,
-        "temperature": 0.4,
+        "temperature": 0.2,
         "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": load_prompt()},
