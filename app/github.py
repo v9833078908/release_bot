@@ -43,3 +43,12 @@ class GitHub:
                     break
                 page += 1
         return out
+
+    async def head_sha(self, branch: str = "main") -> str | None:
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.get(f"{_BASE}/repos/{self.repo}/commits/{branch}",
+                            headers=self._headers, params={"per_page": 1})
+            if r.status_code == 404:
+                return None
+            r.raise_for_status()
+            return r.json()["sha"]

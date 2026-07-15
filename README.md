@@ -53,8 +53,14 @@ No inbound ports are published (long polling only). SQLite state lives on the
 
 ### Commands
 
-- `/release_draft` — manually generate a draft now (ignores the
-  `MIN_FEATURES_TO_PUBLISH` gate).
+Registered in the Telegram command menu (`setMyCommands`) on boot.
+
+- `/release_draft` — generate a draft now over the deployed range
+  (marker..prod), ignoring the `MIN_FEATURES_TO_PUBLISH` gate.
+- `/preview` — draft over `marker..origin/main` HEAD: changes that are in
+  `main` but not yet on prod. Review-only — Publish stays blocked until those
+  changes are actually deployed (a draft is publishable only when its target
+  commit equals the current prod SHA).
 - `/status` — show the current marker, last publish time, and whether a draft
   is pending review.
 

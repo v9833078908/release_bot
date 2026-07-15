@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import Bot
+from aiogram.types import BotCommand
 
 from app.bot import build_dispatcher
 from app.config import get_settings
@@ -21,6 +22,12 @@ async def main() -> None:
     store = Store(settings.db_path, settings.initial_marker_sha)
 
     await bot.delete_webhook(drop_pending_updates=False)  # ensure polling, no webhook conflict
+
+    await bot.set_my_commands([
+        BotCommand(command="release_draft", description="Черновик релиз-поста (по проду)"),
+        BotCommand(command="preview", description="Превью недеплоенных изменений (main)"),
+        BotCommand(command="status", description="Маркер и статус черновика"),
+    ])
 
     dp = build_dispatcher(bot, store, settings)
     scheduler = build_scheduler(bot, store, settings)

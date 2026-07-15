@@ -10,7 +10,7 @@ from aiogram.types import (
 )
 
 from app.formatter import split_message
-from app.generate import generate_draft, regenerate_draft
+from app.generate import generate_draft, regenerate_draft, is_publishable
 from app.llm import draft_release_notes
 
 log = logging.getLogger(__name__)
@@ -70,6 +70,35 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
         else:
             await message.answer(f"Нет релиз-достойных изменений (найдено {res['commit_count']}).")
 
+    @dp.message(Command("preview"))
+    async def cmd_preview(message: Message) -> None:
+        if not _is_admin(message.chat.id):
+            return
+        if store.has_pending():
+            await message.answer("Уже есть черновик на ревью. Заверши его сначала.")
+            return
+        main_sha = await bot._gh.head_sha("main")
+        if main_sha is None:
+            await message.answer("Не удалось получить HEAD ветки main из GitHub.")
+            return
+        try:
+            res = await generate_draft(trigger="preview", store=store, github=bot._gh,
+                                       get_prod_sha=bot._get_prod_sha, settings=settings,
+                                       llm=draft_release_notes, to_sha=main_sha)
+        except Exception:
+            log.exception("preview generate_draft failed")
+            await message.answer("Ошибка при сборке превью (LLM/сеть). Попробуй ещё раз: /preview")
+            return
+        if res["result"] == "drafted":
+            await message.answer(
+                "👁 Превью недеплоенных изменений (main). Публикация станет доступна "
+                "только после того, как они окажутся на проде.")
+            await send_for_review(bot, store, settings.admin_chat_id, res["draft_id"], res["text"])
+        elif res["result"] == "no_changes":
+            await message.answer("main не опережает маркер — показывать нечего.")
+        else:
+            await message.answer(f"Нет релиз-достойных изменений (найдено {res['commit_count']}).")
+
     @dp.message(Command("status"))
     async def cmd_status(message: Message) -> None:
         if not _is_admin(message.chat.id):
@@ -85,6 +114,12 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
         d = store.get_draft(did)
         if not d or d["status"] != "pending":
             await cb.answer("Черновик неактуален.")
+            return
+        prod_sha = await bot._get_prod_sha()
+        if not is_publishable(d["to_sha"], prod_sha):
+            await cb.answer(
+                "Пока нельзя опубликовать: изменения ещё не на проде (превью). "
+                "Опубликуй после прод-деплоя.", show_alert=True)
             return
         first = None
         try:

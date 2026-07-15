@@ -5,11 +5,18 @@ from app.filter import Commit, filter_commits
 from app.formatter import render_html
 
 
-async def generate_draft(*, trigger, store, github, get_prod_sha, settings, llm, hint=None) -> dict:
+def is_publishable(draft_to_sha: str, prod_sha: str | None) -> bool:
+    """A draft may be published only when its target is the commit live on prod."""
+    return prod_sha is not None and draft_to_sha == prod_sha
+
+
+async def generate_draft(*, trigger, store, github, get_prod_sha, settings, llm, hint=None,
+                         to_sha=None) -> dict:
     from_sha = store.get_marker()
-    to_sha = await get_prod_sha()
     if to_sha is None:
-        return {"result": "no_prod_sha"}
+        to_sha = await get_prod_sha()
+        if to_sha is None:
+            return {"result": "no_prod_sha"}
     if to_sha == from_sha:
         return {"result": "no_changes", "commit_count": 0}
 

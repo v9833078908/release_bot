@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.generate import generate_draft, regenerate_draft
+from app.generate import generate_draft, regenerate_draft, is_publishable
 from app.models import Post
 from app.store import Store
 
@@ -89,3 +89,20 @@ async def test_regenerate_reuses_cached_commits(store):
     text = await regenerate_draft(store=store, draft_id=did, settings=Cfg(), llm=llm, hint="короче")
     assert "NEW" in text
     assert "NEW" in store.get_draft(did)["draft_text"]
+
+
+async def test_preview_to_sha_override_drafts_over_main(store):
+    # get_prod_sha == marker would yield no_changes; the main-HEAD override must draft anyway.
+    gh = FakeGitHub([("s1", "feat(a): x")])
+    res = await generate_draft(trigger="preview", store=store, github=gh,
+                               get_prod_sha=_prod("base0"), settings=Cfg(), llm=_fake_llm,
+                               to_sha="mainhead")
+    assert res["result"] == "drafted"
+    assert store.get_draft(res["draft_id"])["to_sha"] == "mainhead"
+    assert store.get_marker() == "base0"  # preview never advances the marker
+
+
+def test_is_publishable_only_when_to_sha_is_current_prod():
+    assert is_publishable("abc", "abc") is True
+    assert is_publishable("abc", "def") is False
+    assert is_publishable("abc", None) is False
