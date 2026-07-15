@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Idempotent redeploy. Runs ON the VPS in /opt/release_bot.
 #
-#   1. Fetch latest origin/main and hard-reset the tree (untracked ./data and
-#      .env are preserved - SQLite state and secrets survive).
+#   1. With no arg: fetch latest origin/main and hard-reset to it. With a
+#      ref/SHA arg: reset to that pinned ref WITHOUT fetching (rollback). Either
+#      way untracked ./data and .env are preserved (SQLite state + secrets).
 #   2. Rebuild + restart the single release-bot container.
 #   3. Verify the bot reaches Telegram long polling (fails on getUpdates 409 or
 #      no-polling within ~40s).
 #   4. Prune dangling images.
 #
+# Usage (on the VPS):
+#   bash scripts/redeploy.sh            # deploy latest origin/main
+#   bash scripts/redeploy.sh <sha|ref>  # pin/rollback to a specific commit
 # Trigger from your laptop with:  scripts/ship.sh
 # Run as the login user (dev01); sudo is used only for docker compose.
 
@@ -21,10 +25,21 @@ cd "$REPO_DIR"
 
 compose=(sudo docker compose)
 
-echo "==> fetch + reset to origin/main"
+echo "==> resolve target ref"
 prev_sha=$(git rev-parse --short HEAD)
-git fetch --prune origin main
-git reset --hard origin/main
+ref="${1:-}"
+if [ -z "$ref" ]; then
+    echo "    forward deploy: fetch origin/main"
+    git fetch --prune origin main
+    ref="origin/main"
+else
+    echo "    pinned deploy/rollback: $ref (no fetch)"
+    git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null || {
+        echo "ERROR: ref '$ref' not found locally; fetch it first." >&2
+        exit 1
+    }
+fi
+git reset --hard "$ref"
 new_sha=$(git rev-parse --short HEAD)
 echo "    $prev_sha -> $new_sha"
 

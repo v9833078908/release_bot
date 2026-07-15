@@ -83,10 +83,10 @@ Already true (verified):
   (template `.env.local.example`; gitignored, never commit).
 
 Needed once, on the VPS:
-- A **dedicated `release_bot` SSH deploy key** (see §5.1). **Do NOT reuse the
-  Game Pulse deploy key**: GitHub deploy keys are unique per repository, so the
-  existing key cannot be added to a second repo ("key already in use"). A fresh
-  keypair + an SSH host alias is required.
+- Nothing GitHub-side for cloning: `release_bot` is a **public** repo, so the
+  VPS clones read-only over HTTPS (§5.1) - no key, no GitHub UI step. (Only if
+  it is later made **private** do you need a dedicated deploy key; never reuse
+  the single-repo Game Pulse key. See the §5.1 fallback.)
 - `sshpass` on the operator laptop (`brew install sshpass`).
 - Docker + docker compose on the VPS (present; `dev01` has NOPASSWD sudo for
   docker, per the Game Pulse setup).
@@ -98,10 +98,12 @@ Needed once, on the VPS:
 - `scripts/ship.sh` - laptop trigger: validate clean tree, `git push origin
   main`, then `sshpass ssh` into the VPS and run `redeploy.sh`. `--no-push`
   deploys current `origin/main` without pushing.
-- `scripts/redeploy.sh` - runs on the VPS in `/opt/release_bot`: `git fetch` +
-  `reset --hard origin/main`, `docker compose up --build -d --remove-orphans`,
-  waits for the `Run polling` log (fails on `getUpdates 409` or no-polling within
-  ~40s), `ps`, prune. Idempotent.
+- `scripts/redeploy.sh [ref]` - runs on the VPS in `/opt/release_bot`. No arg:
+  `git fetch` + `reset --hard origin/main`. With a `<sha|ref>` arg: `reset
+  --hard` to that pinned commit **without** fetching (rollback; §9). Then
+  `docker compose up --build -d --remove-orphans`, waits for the `Run polling`
+  log (fails on `getUpdates 409` or no-polling within ~40s), `ps`, prune.
+  Idempotent.
 - `docker-compose.yml` - one service `release-bot`, `build: .`, `env_file: .env`,
   `./data:/app/data` volume, `restart: unless-stopped`, no ports, json-file log
   rotation (10m x3).
@@ -140,23 +142,37 @@ Provision it by copying the local file:
 
 ## 5. One-time VPS bootstrap
 
-### 5.1 Dedicated deploy key + SSH host alias (CRITICAL - do not skip)
+### 5.1 Create the repo dir and clone (HTTPS - public repo)
 
-GitHub deploy keys are single-repository. The VPS key already serves Game Pulse,
-so generate a **separate** keypair for `release_bot` and reach GitHub through an
-SSH host alias so the right key is always offered.
+`v9833078908/release_bot` is a **public** repo, so the VPS clones it read-only
+over HTTPS with no deploy key and no GitHub-UI step. `redeploy.sh` only ever
+runs `git fetch origin` / `git reset --hard`, which need no auth against a
+public origin.
 
 On the VPS, as `dev01`:
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/release_bot_deploy -N "" -C "release_bot-deploy@$(hostname)"
-cat ~/.ssh/release_bot_deploy.pub   # copy this
+sudo mkdir -p /opt/release_bot && sudo chown dev01:dev01 /opt/release_bot
+git clone https://github.com/v9833078908/release_bot.git /opt/release_bot
 ```
 
-Add that public key to the repo: GitHub -> `v9833078908/release_bot` ->
-Settings -> Deploy keys -> **Add deploy key** (read-only; the bot only fetches).
+The clone's `origin` is the HTTPS URL, so `redeploy.sh`'s `git fetch origin` /
+`git reset --hard origin/main` work unauthenticated. The laptop keeps its own
+`git@github.com:...` origin and pushes with the operator's account key.
 
-Append to `~/.ssh/config` on the VPS:
+#### Fallback: dedicated deploy key (ONLY if the repo is made private)
+
+If `release_bot` is ever switched to private, HTTPS fetch begins failing and the
+VPS origin must move to SSH with a **dedicated** deploy key (GitHub deploy keys
+are single-repo, so the Game Pulse key cannot be reused). On the VPS:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/release_bot_deploy -N "" -C "release_bot-deploy@$(hostname)"
+cat ~/.ssh/release_bot_deploy.pub   # add read-only under repo Settings -> Deploy keys
+```
+
+Append to `~/.ssh/config` (`IdentitiesOnly yes` stops SSH offering the Game
+Pulse key first, which would auth as the wrong repo):
 
 ```
 Host github-release-bot
@@ -166,28 +182,14 @@ Host github-release-bot
     IdentitiesOnly yes
 ```
 
-`IdentitiesOnly yes` is required so SSH does not first offer the Game Pulse key
-(which would authenticate as the wrong repo and fail). Verify:
+Then point origin at the alias and verify:
 
 ```bash
-ssh -T git@github-release-bot
-# Expect: "Hi v9833078908/release_bot! You've successfully authenticated, but
-#          GitHub does not provide shell access."
+git -C /opt/release_bot remote set-url origin git@github-release-bot:v9833078908/release_bot.git
+ssh -T git@github-release-bot   # "Hi v9833078908/release_bot! ..."
 ```
 
-### 5.2 Clone via the alias
-
-```bash
-sudo mkdir -p /opt/release_bot && sudo chown dev01:dev01 /opt/release_bot
-git clone git@github-release-bot:v9833078908/release_bot.git /opt/release_bot
-```
-
-The clone's `origin` becomes `git@github-release-bot:...`, so `redeploy.sh`'s
-`git fetch origin` / `git reset --hard origin/main` use the dedicated key with
-no extra config. (The laptop keeps the normal `git@github.com:...` origin and
-pushes with the operator's account key - independent of the VPS deploy key.)
-
-### 5.3 Provision `.env` and first bring-up
+### 5.2 Provision `.env` and first bring-up
 
 ```bash
 # from the laptop:
@@ -253,14 +255,20 @@ scripts/ship.sh --no-push   # redeploy current origin/main only
 
 ## 9. Rollback
 
+`redeploy.sh` takes an optional ref/SHA. With no arg it deploys the latest
+`origin/main`; with a ref it `reset --hard`s to exactly that commit **without**
+fetching, so a rollback sticks:
+
 ```bash
 cd /opt/release_bot
-git reset --hard <prev_sha>
-bash scripts/redeploy.sh
+bash scripts/redeploy.sh <prev_sha>   # the prev_sha from the "$prev_sha -> $new_sha" line
 ```
 
-No schema/state migration to reverse (SQLite schema is create-if-absent and
-additive). The `./data` DB is untouched by a code rollback.
+(The earlier two-step `git reset --hard <sha>` then arg-less `redeploy.sh` did
+**not** roll back: the arg-less path re-fetches and resets to `origin/main`,
+immediately discarding the checkout.) No schema/state migration to reverse
+(SQLite schema is create-if-absent and additive); the `./data` DB is untouched
+by a code rollback.
 
 ---
 
@@ -269,10 +277,11 @@ additive). The `./data` DB is untouched by a code rollback.
 1. [ ] `brew install sshpass` on the laptop; create `release_bot/.env.local`
    from `.env.local.example` with the `VPS_*` values from
    `game_pulse_saas/.env.local`.
-2. [ ] On the VPS: generate `~/.ssh/release_bot_deploy`, add the pubkey as a
-   read-only Deploy Key on `v9833078908/release_bot`, add the `github-release-bot`
-   SSH alias, verify `ssh -T git@github-release-bot`.
-3. [ ] Clone via the alias to `/opt/release_bot`.
+2. [ ] On the VPS: `sudo mkdir -p /opt/release_bot && sudo chown dev01:dev01
+   /opt/release_bot` (public repo - no deploy key/alias needed; see the §5.1
+   fallback only if it is ever made private).
+3. [ ] Clone over HTTPS to `/opt/release_bot`:
+   `git clone https://github.com/v9833078908/release_bot.git /opt/release_bot`.
 4. [ ] `scp` local `.env` -> `/opt/release_bot/.env`; `chmod 600`; set
    `INITIAL_MARKER_SHA` per §7.
 5. [ ] Ensure no other instance is polling the token (stop any dev run).
