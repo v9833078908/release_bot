@@ -47,6 +47,12 @@ async def draft_release_notes(api_key: str, model: str, commits: list[Commit],
         ],
     }
     async with httpx.AsyncClient(timeout=120) as c:
-        r = await c.post(_ENDPOINT, headers={"Authorization": f"Bearer {api_key}"}, json=payload)
-        r.raise_for_status()
-        return _parse_post(r.json()["choices"][0]["message"]["content"])
+        last_err: Exception | None = None
+        for _ in range(2):  # one retry: the LLM occasionally returns truncated/invalid JSON
+            r = await c.post(_ENDPOINT, headers={"Authorization": f"Bearer {api_key}"}, json=payload)
+            r.raise_for_status()
+            try:
+                return _parse_post(r.json()["choices"][0]["message"]["content"])
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                last_err = e
+        raise last_err

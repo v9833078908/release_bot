@@ -32,3 +32,15 @@ async def test_draft_release_notes_strips_code_fence():
             '```json\n{"intro":"i","features":[],"improvements":[],"fixes_summary":"x"}\n```'}}]}))
     out = await draft_release_notes("key", "model", [])
     assert out.fixes_summary == "x"
+
+
+@respx.mock
+async def test_draft_release_notes_retries_once_on_bad_json():
+    good = '{"intro":"ok","features":[],"improvements":[],"fixes_summary":null}'
+    respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
+        side_effect=[
+            httpx.Response(200, json={"choices": [{"message": {"content": '{"intro":"trunc'}}]}),
+            httpx.Response(200, json={"choices": [{"message": {"content": good}}]}),
+        ])
+    out = await draft_release_notes("key", "model", [])
+    assert out.intro == "ok"

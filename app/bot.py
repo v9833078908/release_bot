@@ -53,9 +53,14 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
         if store.has_pending():
             await message.answer("Уже есть черновик на ревью. Заверши его сначала.")
             return
-        res = await generate_draft(trigger="manual", store=store, github=bot._gh,
-                                   get_prod_sha=bot._get_prod_sha, settings=settings,
-                                   llm=draft_release_notes)
+        try:
+            res = await generate_draft(trigger="manual", store=store, github=bot._gh,
+                                       get_prod_sha=bot._get_prod_sha, settings=settings,
+                                       llm=draft_release_notes)
+        except Exception:
+            log.exception("manual generate_draft failed")
+            await message.answer("Ошибка при сборке черновика (LLM/сеть). Попробуй ещё раз: /release_draft")
+            return
         if res["result"] == "drafted":
             await send_for_review(bot, store, settings.admin_chat_id, res["draft_id"], res["text"])
         elif res["result"] == "no_prod_sha":
@@ -82,9 +87,14 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             await cb.answer("Черновик неактуален.")
             return
         first = None
-        for chunk in split_message(d["draft_text"]):
-            sent = await bot.send_message(settings.channel_id, chunk, parse_mode="HTML")
-            first = first or sent
+        try:
+            for chunk in split_message(d["draft_text"]):
+                sent = await bot.send_message(settings.channel_id, chunk, parse_mode="HTML")
+                first = first or sent
+        except Exception:
+            log.exception("publish to channel failed")
+            await cb.answer("Не удалось отправить в канал (права бота?).", show_alert=True)
+            return
         ok = store.publish(did, to_sha=d["to_sha"], channel_msg_id=first.message_id)
         await cb.message.edit_reply_markup(reply_markup=None)
         await cb.answer("Опубликовано" if ok else "Уже опубликовано")
@@ -93,8 +103,14 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
     async def on_regenerate(cb: CallbackQuery) -> None:
         did = int(cb.data.split(":")[1])
         await cb.answer("Генерирую заново...")
-        text = await regenerate_draft(store=store, draft_id=did, settings=settings,
-                                      llm=draft_release_notes)
+        try:
+            text = await regenerate_draft(store=store, draft_id=did, settings=settings,
+                                          llm=draft_release_notes)
+        except Exception:
+            log.exception("regenerate_draft failed")
+            await bot.send_message(settings.admin_chat_id,
+                                   "Ошибка при перегенерации (LLM/сеть). Нажми «Перегенерировать» ещё раз.")
+            return
         await send_for_review(bot, store, settings.admin_chat_id, did, text)
 
     @dp.callback_query(F.data.startswith("cx:"))
