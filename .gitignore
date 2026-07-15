@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 .env
+.env.local
+!.env.local.example
 data/
 .pytest_cache/
 .DS_Store
