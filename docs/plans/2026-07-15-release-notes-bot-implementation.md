@@ -1364,13 +1364,44 @@ async def version() -> dict[str, str]:
     return {"sha": os.getenv("GIT_SHA", "unknown")}
 ```
 
-**Step 4:** `scripts/redeploy_prod.sh` — export the SHA for the build. Change both `up --build` invocations (the main one at line ~56 and the rollback ones) so compose interpolates `GIT_SHA`. For the success path use `$new_sha`; the rollback path may leave `${GIT_SHA:-unknown}` (the rebuilt prev image simply reports `unknown` or you may set it to `$prev_sha`). Minimal safe form for the main build:
+**Step 4:** `scripts/redeploy_prod.sh` — the compose wrapper is `sudo docker compose` (line 53), and `sudo`'s `env_reset` drops a plain `GIT_SHA=... "${compose[@]}"` prefix, so the build would bake `unknown`. Pass the SHA **past sudo** with `sudo env`, and bake the correct SHA on BOTH the main build (`$new_sha`) and every rollback build (`$prev_sha`) — otherwise `/version` returns `unknown` after a rollback and the bot's release boundary breaks. Then smoke-check `/version` equals the built SHA so a silently broken ARG->ENV->route chain fails the deploy.
+
+Add a build helper (after line 53), keeping the existing `compose=(sudo docker compose ...)` array only for non-build commands like `ps`:
 
 ```bash
-if ! GIT_SHA="$new_sha" "${compose[@]}" up --build -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"; then
+build_up() {   # $1 = git sha to bake into the image
+    sudo env GIT_SHA="$1" docker compose -f "$COMPOSE_FILE" --env-file .env \
+        up --build -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"
+}
 ```
 
-No changes to the rollback control flow are required for correctness: `/version` reports whatever image is actually running.
+Main build (replaces the `if ! "${compose[@]}" up --build ...` block at ~line 56):
+
+```bash
+if ! build_up "$new_sha"; then
+    echo "ERROR: compose up failed; rolling back to $prev_sha" >&2
+    git reset --hard "$prev_sha"
+    build_up "$prev_sha" || true
+    exit 1
+fi
+```
+
+Apply the same `build_up "$prev_sha" || true` in the post-smoke-test rollback branch (~lines 67-71).
+
+After the successful `/healthz` smoke test, add a `/version` smoke check:
+
+```bash
+echo "==> verify /api/v1/version == $new_sha"
+deployed=$(curl -fsS http://127.0.0.1:8081/api/v1/version \
+    | python3 -c 'import sys, json; print(json.load(sys.stdin)["sha"])')
+if [ "$deployed" != "$new_sha" ]; then
+    echo "ERROR: /version=$deployed != built $new_sha; rolling back to $prev_sha" >&2
+    git reset --hard "$prev_sha"
+    build_up "$prev_sha" || true
+    exit 1
+fi
+echo "    OK"
+```
 
 **Step 5:** Verify locally: `docker build --build-arg GIT_SHA=test -t gp backend && docker run --rm gp python -c "import os;print(os.getenv('GIT_SHA'))"` → prints `test`.
 
