@@ -21,3 +21,46 @@ cp .env.example .env   # fill in tokens/keys
 ```
 .venv/bin/python -m pytest -v
 ```
+
+## One-time setup
+
+1. Create the bot via [@BotFather](https://t.me/BotFather); save the token
+   into `RELEASE_BOT_TOKEN`.
+2. Add the bot as admin of `@game_pulse_whiteboard` with post rights.
+3. The bot calls `delete_webhook` on boot, so it is safe to run with long
+   polling even if a webhook was ever set previously.
+4. Ship the `/api/v1/version` endpoint to `game_pulse_saas` and deploy it once
+   (part of this plan, `game_pulse_saas` repo) so `/version` returns a real SHA.
+5. Set `INITIAL_MARKER_SHA` in `.env` to the current prod SHA (read it from
+   `PROD_VERSION_URL` once step 4 is deployed) so the first digest only
+   covers changes from that point forward.
+6. Issue a GitHub fine-grained PAT with `contents:read` on `game_pulse_saas`;
+   save it into `GITHUB_TOKEN`.
+7. Fill in `OPENROUTER_API_KEY`, `ADMIN_CHAT_ID` (your Telegram user/chat id),
+   and the rest of `.env` from `.env.example`.
+
+## Running
+
+Run **exactly ONE** instance — a second long-polling consumer on the same
+bot token will conflict with `getUpdates`.
+
+```
+docker compose up --build -d
+```
+
+No inbound ports are published (long polling only). SQLite state lives on the
+`./data` volume. Logs: `docker compose logs -f release-bot`.
+
+### Commands
+
+- `/release_draft` — manually generate a draft now (ignores the
+  `MIN_FEATURES_TO_PUBLISH` gate).
+- `/status` — show the current marker, last publish time, and whether a draft
+  is pending review.
+
+Scheduled digests run on `SCHEDULE_CRON`/`SCHEDULE_TZ` automatically.
+
+### Prod deploy
+
+On the VPS, checkout this repo at `/opt/release_bot`, populate `.env`, then
+`scripts/redeploy.sh` (fetch + hard reset to `origin/main` + rebuild).
