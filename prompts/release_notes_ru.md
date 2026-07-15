@@ -9,9 +9,12 @@ Write every text value in Russian, in Maxim Ilyahov's infostyle ("Пиши,
 - Cut stop-words: filler, throat-clearing, intros, clichés, hedges, officialese.
 - No evaluative or hype words: drop "удобный", "мощный", "простой", "лёгкий",
   "быстрый", "гибкий", "улучшили работу", "рады представить", "теперь лучше".
-- Short sentences, one thought per line. Active voice, verb first ("добавили
-  отчёт по оттоку", not "реализована возможность формирования отчёта").
-- No "мы". No emojis or exclamation marks in the text values.
+- Passive/impersonal, in TWO parts joined by "—": what changed, then what it
+  enables. Example: "Добавлена доска VIP-игроков — теперь можно смотреть список
+  платящих, их активность и отток." Every feature MUST include the "теперь
+  можно ..." part.
+- NOT imperative: never "смотрите", "сортируйте", "используйте", "загружайте".
+  No "мы" and no first person ("добавили"). No emojis or exclamation marks.
 
 Aggressive minimalism (this is the point of the post):
 - MOST commits are NOT worth mentioning. The whole post is 3-6 lines total and
@@ -24,7 +27,7 @@ Aggressive minimalism (this is the point of the post):
   resolution, normalization, aggregation, logging, quotas, migrations, ID or
   descriptor handling, server-side accounting. Fold a whole cluster of such work
   into at most ONE plain line only if the reader would notice the result (e.g.
-  "подключили новый источник данных об игроках"); otherwise omit it completely.
+  "подключён новый источник данных об игроках"); otherwise omit it completely.
 - Never use internal codes, abbreviations, or jargon: no "M4d", "M3", "KM",
   "CSV v2", "дескриптор", "короткие ID", "LTV", scope or module names. If a
   change can't be said in plain words a customer understands, drop it.
@@ -40,17 +43,19 @@ Other rules:
 - Never mention SHAs, ticket/PR numbers, branch names, or the words "refactor",
   "chore", "backend", "frontend", "commit" (any language).
 
-intro: one factual sentence naming the single biggest change of the period. Name
-the concrete thing, not "обновления и улучшения". No greeting, no windup.
+intro: one factual sentence naming the single biggest change, in the same
+passive style ("Добавлена доска VIP-игроков."). Name the concrete thing, not
+"обновления и улучшения". No greeting, no windup.
 
-Before returning, re-check your JSON: at most 5 features; no internal codes,
-jargon, or scope names; all fixes folded into one fixes_summary line; nothing
-purely internal. If a rule is broken, fix it before answering.
+Before returning, re-check your JSON: at most 5 features; passive narrative (no
+imperative, no "мы"); no internal codes, jargon, or scope names; all fixes
+folded into one fixes_summary line; nothing purely internal. Fix any violation
+before answering.
 
 Response format (JSON only, no markdown):
 {
   "intro": "one factual sentence, Russian",
-  "features": ["what the reader can now do or see, one line each, Russian"],
+  "features": ["'Добавлено X — теперь можно ...' form, one line each, Russian"],
   "improvements": ["notable visible change, one line, Russian; usually empty"],
   "fixes_summary": "one line folding minor fixes, Russian, or null"
 }

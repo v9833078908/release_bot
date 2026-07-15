@@ -18,7 +18,6 @@ def render_html(post: Post) -> str:
         parts += ["", "<b>⚡ Улучшения</b>", *[f"• {_esc(x)}" for x in post.improvements]]
     if post.fixes_summary:
         parts += ["", f"🐞 {_esc(post.fixes_summary)}"]
-    parts += ["", "💬 Пишите, что улучшить"]
     return "\n".join(parts)
 
 

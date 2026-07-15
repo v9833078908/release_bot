@@ -9,7 +9,7 @@ def test_render_escapes_and_bolds():
     assert "A &amp; B" in out
     assert "• &lt;x&gt; fast" in out
     assert "<b>✨ Новое</b>" in out
-    assert "💬 Пишите, что улучшить" in out
+    assert "Пишите, что улучшить" not in out
 
 
 def test_render_omits_empty_groups_and_fixes():
