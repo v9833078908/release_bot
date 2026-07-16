@@ -10,6 +10,25 @@ def is_publishable(draft_to_sha: str, prod_sha: str | None) -> bool:
     return prod_sha is not None and draft_to_sha == prod_sha
 
 
+def publish_block_reason(draft_to_sha: str, prod_sha: str | None, trigger: str = "deploy") -> str | None:
+    """None if the draft is publishable; otherwise a human message saying why not.
+
+    `trigger` distinguishes direction: a "preview" draft targets main HEAD, which is
+    AHEAD of prod (not deployed yet); any other trigger going stale means prod has
+    since moved PAST the draft's target. SHA inequality alone can't tell those apart.
+    """
+    if prod_sha is None:
+        return "Не могу получить текущий прод-SHA, попробуй позже."
+    if is_publishable(draft_to_sha, prod_sha):
+        return None
+    if trigger == "preview":
+        return ("Пока нельзя опубликовать: изменения ещё не на проде (превью). "
+                "Опубликуй после прод-деплоя.")
+    return (f"Нельзя опубликовать: цель черновика {draft_to_sha[:8]} != текущий прод "
+            f"{prod_sha[:8]}. Прод ушёл вперёд - отмени черновик, бот соберёт новый "
+            f"по полному диапазону.")
+
+
 async def generate_draft(*, trigger, store, github, get_prod_sha, settings, llm, hint=None,
                          to_sha=None) -> dict:
     from_sha = store.get_marker()

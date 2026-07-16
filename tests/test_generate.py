@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.generate import generate_draft, regenerate_draft, is_publishable
+from app.generate import generate_draft, regenerate_draft, is_publishable, publish_block_reason
 from app.models import Post
 from app.store import Store
 
@@ -106,3 +106,26 @@ def test_is_publishable_only_when_to_sha_is_current_prod():
     assert is_publishable("abc", "abc") is True
     assert is_publishable("abc", "def") is False
     assert is_publishable("abc", None) is False
+
+
+def test_publish_block_reason_none_when_equal():
+    assert publish_block_reason("abc", "abc") is None
+
+
+def test_publish_block_reason_message_when_different():
+    msg = publish_block_reason("aaaaaaaa11", "bbbbbbbb22")
+    assert msg is not None
+    assert "aaaaaaaa" in msg and "bbbbbbbb" in msg
+
+
+def test_publish_block_reason_message_when_prod_none():
+    assert publish_block_reason("abc", None) is not None
+
+
+def test_publish_block_reason_preview_message_when_not_yet_deployed():
+    # /preview drafts target main HEAD, which is AHEAD of prod (opposite direction
+    # from a stale deploy/manual draft) - the message must not claim "prod moved forward".
+    msg = publish_block_reason("aaaaaaaa11", "bbbbbbbb22", trigger="preview")
+    assert msg is not None
+    assert "прод ушёл вперёд" not in msg
+    assert "превью" in msg

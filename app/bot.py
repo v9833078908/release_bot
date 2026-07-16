@@ -12,7 +12,7 @@ from aiogram.types import (
 )
 
 from app.formatter import split_message, finalize_publish
-from app.generate import generate_draft, regenerate_draft, is_publishable
+from app.generate import generate_draft, regenerate_draft, publish_block_reason
 from app.llm import draft_release_notes
 
 log = logging.getLogger(__name__)
@@ -118,10 +118,9 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             await cb.answer("Черновик неактуален.")
             return
         prod_sha = await bot._get_prod_sha()
-        if not is_publishable(d["to_sha"], prod_sha):
-            await cb.answer(
-                "Пока нельзя опубликовать: изменения ещё не на проде (превью). "
-                "Опубликуй после прод-деплоя.", show_alert=True)
+        reason = publish_block_reason(d["to_sha"], prod_sha, d["trigger"])
+        if reason is not None:
+            await cb.answer(reason, show_alert=True)
             return
         release_no = store.claim_for_publish(did)
         if release_no is None:
