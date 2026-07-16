@@ -20,6 +20,7 @@ class Settings:  # duck-typed; only fields generate_draft reads
     openrouter_api_key = "k"
     llm_model = "m"
     min_features_to_publish = 1
+    feature_prefix_list = []
 
 
 async def fake_llm(api_key, model, commits, hint):

@@ -43,7 +43,7 @@ async def generate_draft(*, trigger, store, github, get_prod_sha, settings, llm,
     if raw is None:
         raw = await github.commits_since(to_sha, store.get_last_published_at())
 
-    commits = filter_commits(raw)
+    commits = filter_commits(raw, tuple(settings.feature_prefix_list))
     features = [c for c in commits if c.type == "feat"]
     n, fcount = len(commits), len(features)
     raw_dump = [asdict(c) for c in commits]

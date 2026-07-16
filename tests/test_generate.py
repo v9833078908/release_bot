@@ -19,6 +19,7 @@ class Cfg:
     min_features_to_publish = 1
     openrouter_api_key = "k"
     llm_model = "m"
+    feature_prefix_list = []
 
 
 async def _fake_llm(*a, **k):
@@ -129,3 +130,13 @@ def test_publish_block_reason_preview_message_when_not_yet_deployed():
     assert msg is not None
     assert "прод ушёл вперёд" not in msg
     assert "превью" in msg
+
+
+async def test_feature_prefix_drafts_via_generate(store):
+    gh = FakeGitHub([("s1", "VIP Board: connection gate")])
+    cfg = Cfg()
+    cfg.feature_prefix_list = ["VIP Board"]
+    res = await generate_draft(trigger="deploy", store=store, github=gh,
+                               get_prod_sha=_prod("P"), settings=cfg, llm=_fake_llm, to_sha="P")
+    assert res["result"] == "drafted"
+    assert res["feature_count"] == 1
