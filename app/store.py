@@ -113,8 +113,12 @@ class Store:
     def set_draft_text(self, draft_id: int, text: str) -> None:
         self._patch(draft_id, draft_text=text)
 
-    def cancel(self, draft_id: int) -> None:
-        self._patch(draft_id, status="cancelled")
+    def cancel(self, draft_id: int) -> bool:
+        with self.engine.begin() as conn:
+            res = conn.execute(update(drafts)
+                               .where(drafts.c.id == draft_id, drafts.c.status == "pending")
+                               .values(status="cancelled", updated_at=_now()))
+            return res.rowcount > 0
 
     def _patch(self, draft_id: int, **values) -> None:
         values["updated_at"] = _now()

@@ -86,3 +86,14 @@ def test_release_no_migrated_on_existing_db(tmp_path):
     did = s.create_draft(status="pending", trigger="manual", from_sha="base0", to_sha="h",
                          commit_count=1, feature_count=1, raw_commits=[], draft_text="t")
     assert s.claim_for_publish(did) == 1
+
+
+def test_cancel_refused_after_claim(store):
+    did = store.create_draft(status="pending", trigger="manual", from_sha="base0",
+                             to_sha="h1", commit_count=1, feature_count=1,
+                             raw_commits=[], draft_text="t")
+    assert store.claim_for_publish(did) == 1
+    assert store.cancel(did) is False  # cannot cancel a claimed (publishing) draft
+    assert store.get_draft(did)["status"] == "publishing"
+    assert store.publish(did, to_sha="h1", channel_msg_id=9) is True
+    assert store.get_marker() == "h1"

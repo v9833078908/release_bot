@@ -146,6 +146,10 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
     @dp.callback_query(F.data.startswith("rg:"))
     async def on_regenerate(cb: CallbackQuery) -> None:
         did = int(cb.data.split(":")[1])
+        d = store.get_draft(did)
+        if not d or d["status"] != "pending":
+            await cb.answer("Черновик неактуален.")
+            return
         await cb.answer("Генерирую заново...")
         try:
             text = await regenerate_draft(store=store, draft_id=did, settings=settings,
@@ -159,13 +163,19 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
 
     @dp.callback_query(F.data.startswith("cx:"))
     async def on_cancel(cb: CallbackQuery) -> None:
-        store.cancel(int(cb.data.split(":")[1]))
-        await cb.message.edit_reply_markup(reply_markup=None)
-        await cb.answer("Отменено")
+        if store.cancel(int(cb.data.split(":")[1])):
+            await cb.message.edit_reply_markup(reply_markup=None)
+            await cb.answer("Отменено")
+        else:
+            await cb.answer("Черновик неактуален.")
 
     @dp.callback_query(F.data.startswith("ed:"))
     async def on_edit(cb: CallbackQuery, state: FSMContext) -> None:
         did = int(cb.data.split(":")[1])
+        d = store.get_draft(did)
+        if not d or d["status"] != "pending":
+            await cb.answer("Черновик неактуален.")
+            return
         await state.set_state(EditState.waiting_for_text)
         await state.update_data(draft_id=did)
         await cb.answer()
@@ -174,9 +184,13 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
     @dp.message(EditState.waiting_for_text)
     async def on_edit_text(message: Message, state: FSMContext) -> None:
         did = (await state.get_data())["draft_id"]
+        await state.clear()
+        d = store.get_draft(did)
+        if not d or d["status"] != "pending":
+            await message.answer("Черновик неактуален.")
+            return
         escaped = html.escape(message.text or "", quote=False)
         store.set_draft_text(did, escaped)
-        await state.clear()
         await send_for_review(bot, store, settings.admin_chat_id, did, escaped)
 
     return dp
