@@ -13,6 +13,7 @@ publish_state = Table(
     Column("id", Integer, primary_key=True),
     Column("last_published_sha", Text),
     Column("last_published_at", Text),
+    Column("last_seen_prod_sha", Text),
     Column("updated_at", Text),
 )
 
@@ -49,6 +50,10 @@ class Store:
             if "release_no" not in cols:
                 conn.exec_driver_sql("ALTER TABLE drafts ADD COLUMN release_no INTEGER")
         with self.engine.begin() as conn:
+            pcols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(publish_state)")}
+            if "last_seen_prod_sha" not in pcols:
+                conn.exec_driver_sql("ALTER TABLE publish_state ADD COLUMN last_seen_prod_sha TEXT")
+        with self.engine.begin() as conn:
             if conn.execute(select(publish_state.c.id).where(publish_state.c.id == 1)).first() is None:
                 conn.execute(insert(publish_state).values(
                     id=1, last_published_sha=initial_marker_sha,
@@ -63,6 +68,17 @@ class Store:
         with self.engine.begin() as conn:
             return conn.execute(select(publish_state.c.last_published_at)
                                 .where(publish_state.c.id == 1)).scalar_one()
+
+    def get_last_seen_prod_sha(self) -> str | None:
+        with self.engine.begin() as conn:
+            return conn.execute(select(publish_state.c.last_seen_prod_sha)
+                                .where(publish_state.c.id == 1)).scalar_one()
+
+    def set_last_seen_prod_sha(self, sha: str) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(update(publish_state)
+                         .where(publish_state.c.id == 1)
+                         .values(last_seen_prod_sha=sha, updated_at=_now()))
 
     def has_pending(self) -> bool:
         with self.engine.begin() as conn:

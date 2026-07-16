@@ -111,3 +111,28 @@ def test_second_draft_cannot_claim_during_publish(store):
     assert store.has_pending() is True             # publishing counts as pending
     assert store.publish(a, to_sha="h1", channel_msg_id=1) is True
     assert store.claim_for_publish(b) == 2         # next number, never a duplicate
+
+
+def test_last_seen_prod_sha_default_none(store):
+    assert store.get_last_seen_prod_sha() is None
+
+
+def test_set_and_get_last_seen_prod_sha(store):
+    store.set_last_seen_prod_sha("abc123")
+    assert store.get_last_seen_prod_sha() == "abc123"
+
+
+def test_last_seen_prod_sha_migrated_on_old_db(tmp_path):
+    import sqlite3
+    p = str(tmp_path / "old.db")
+    con = sqlite3.connect(p)
+    con.execute(
+        "CREATE TABLE publish_state (id INTEGER PRIMARY KEY, "
+        "last_published_sha TEXT, last_published_at TEXT, updated_at TEXT)")
+    con.execute("INSERT INTO publish_state (id, last_published_sha) VALUES (1, 'base0')")
+    con.commit()
+    con.close()
+    s = Store(p, initial_marker_sha="ignored")
+    assert s.get_last_seen_prod_sha() is None
+    s.set_last_seen_prod_sha("deadbeef")
+    assert s.get_last_seen_prod_sha() == "deadbeef"
