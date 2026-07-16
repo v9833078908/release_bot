@@ -97,3 +97,17 @@ def test_cancel_refused_after_claim(store):
     assert store.get_draft(did)["status"] == "publishing"
     assert store.publish(did, to_sha="h1", channel_msg_id=9) is True
     assert store.get_marker() == "h1"
+
+
+def test_second_draft_cannot_claim_during_publish(store):
+    a = store.create_draft(status="pending", trigger="manual", from_sha="base0",
+                           to_sha="h1", commit_count=1, feature_count=1,
+                           raw_commits=[], draft_text="t")
+    b = store.create_draft(status="pending", trigger="manual", from_sha="base0",
+                           to_sha="h1", commit_count=1, feature_count=1,
+                           raw_commits=[], draft_text="t")
+    assert store.claim_for_publish(a) == 1
+    assert store.claim_for_publish(b) is None      # single active publish enforced
+    assert store.has_pending() is True             # publishing counts as pending
+    assert store.publish(a, to_sha="h1", channel_msg_id=1) is True
+    assert store.claim_for_publish(b) == 2         # next number, never a duplicate

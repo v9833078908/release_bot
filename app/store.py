@@ -67,19 +67,25 @@ class Store:
     def has_pending(self) -> bool:
         with self.engine.begin() as conn:
             return conn.execute(select(drafts.c.id)
-                                .where(drafts.c.status == "pending")).first() is not None
+                                .where(drafts.c.status.in_(("pending", "publishing")))).first() is not None
 
     def next_release_no(self) -> int:
         with self.engine.begin() as conn:
             m = conn.execute(select(func.max(drafts.c.release_no))
-                             .where(drafts.c.status == "published")).scalar()
+                             .where(drafts.c.status.in_(("published", "publishing")))).scalar()
             return (m or 0) + 1
 
     def claim_for_publish(self, draft_id: int) -> int | None:
-        """Atomically move pending -> publishing and reserve the release number."""
+        """Atomically move pending -> publishing and reserve a globally unique
+        release number. Refuses if another draft is already mid-publish."""
         with self.engine.begin() as conn:
+            other = conn.execute(select(drafts.c.id)
+                                 .where(drafts.c.status == "publishing",
+                                        drafts.c.id != draft_id)).first()
+            if other is not None:
+                return None
             m = conn.execute(select(func.max(drafts.c.release_no))
-                             .where(drafts.c.status == "published")).scalar()
+                             .where(drafts.c.status.in_(("published", "publishing")))).scalar()
             release_no = (m or 0) + 1
             res = conn.execute(update(drafts)
                                .where(drafts.c.id == draft_id, drafts.c.status == "pending")
