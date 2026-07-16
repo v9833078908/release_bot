@@ -66,6 +66,16 @@ Registered in the Telegram command menu (`setMyCommands`) on boot.
 
 Scheduled digests run on `SCHEDULE_CRON`/`SCHEDULE_TZ` automatically.
 
+### Versioning
+
+Published posts carry a sequential release number and a build stamp. At publish
+the bot atomically reserves the next number (`store.claim_for_publish`,
+`pending -> publishing`) *before* the channel send, injects ` · #N` into the
+header, and appends an `<i>сборка <sha8> · DD.MM.YYYY</i>` footer (`sha` = the
+prod SHA the draft targets). The number is `MAX(release_no over published) + 1`,
+stored per draft, so cancelled or send-failed publishes never burn a number.
+Numbering starts from the first published digest (`#1`).
+
 ### Prod deploy
 
 On the VPS, checkout this repo at `/opt/release_bot`, populate `.env`, then
