@@ -64,7 +64,8 @@ Registered in the Telegram command menu (`setMyCommands`) on boot.
 - `/status` — show the current marker, last publish time, and whether a draft
   is pending review.
 
-Scheduled digests run on `SCHEDULE_CRON`/`SCHEDULE_TZ` automatically.
+Release drafts are triggered automatically by prod deploys - see
+[Deploy-triggered drafts](#deploy-triggered-drafts) below.
 
 ### Versioning
 
@@ -75,6 +76,24 @@ header, and appends an `<i>сборка <sha8> · DD.MM.YYYY</i>` footer (`sha` 
 prod SHA the draft targets). The number is `MAX(release_no over published) + 1`,
 stored per draft, so cancelled or send-failed publishes never burn a number.
 Numbering starts from the first published digest (`#1`).
+
+### Deploy-triggered drafts
+
+An interval job polls `/api/v1/version` every `DEPLOY_POLL_SECONDS` (default 180s).
+When prod's SHA advances (a successful deploy), the bot drafts release notes over
+`marker..prod` and sends them to the admin for approval - it never auto-publishes.
+
+- `last_seen_prod_sha` (in `publish_state`) is the idempotency cursor: the poll
+  reacts once per deploy SHA. It advances only after a durable outcome (draft
+  delivered, or nothing to post). Flaky `/version`, LLM errors, and review-send
+  failures leave it unchanged so the next tick retries.
+- The publish **marker** advances only on real publish. So if you **cancel** a
+  draft, its commits are re-included in the next deploy's draft (the range keeps
+  growing until you approve one).
+- After a second deploy, an older pending draft can no longer be approved (its
+  target build is no longer live). Cancel it; the poll rebuilds the combined
+  range. This guard keeps the build footer honest.
+- There is no weekly job - posting is purely deploy-driven, so a cancelled draft is never recreated on its own; only the next deploy rebuilds its range. `SCHEDULE_TZ` still sets the footer date timezone.
 
 ### Prod deploy
 
