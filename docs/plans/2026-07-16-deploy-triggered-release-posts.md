@@ -428,11 +428,11 @@ git commit -m "feat(scheduler): run_deploy_poll idempotent tick + send-failure r
 
 ---
 
-## Task 4: Register the interval job + config knob
+## Task 4: Replace the weekly cron with the interval poll (+ config knob)
 
 **Files:**
-- Modify: `app/config.py` (add setting after `db_path`, ~line 21)
-- Modify: `app/scheduler.py` (import + register interval job in `build_scheduler`)
+- Modify: `app/config.py` (add `deploy_poll_seconds`; remove dead `schedule_cron`)
+- Modify: `app/scheduler.py` (swap imports; rewrite `build_scheduler` to a single interval job)
 - Test: `tests/test_deploy_poll.py` (append a registration test)
 
 **Step 1: Write the failing test**
@@ -440,45 +440,54 @@ git commit -m "feat(scheduler): run_deploy_poll idempotent tick + send-failure r
 Append to `tests/test_deploy_poll.py`:
 
 ```python
-def test_build_scheduler_registers_cron_and_interval_jobs():
+def test_build_scheduler_registers_only_the_deploy_poll():
+    from apscheduler.triggers.interval import IntervalTrigger
     from app.scheduler import build_scheduler
 
     class S:
-        schedule_cron = "0 12 * * FRI"
         schedule_tz = "Europe/Moscow"
         deploy_poll_seconds = 180
-        admin_chat_id = 1
 
     sched = build_scheduler(bot=object(), store=object(), settings=S())
-    assert len(sched.get_jobs()) == 2
+    jobs = sched.get_jobs()
+    assert len(jobs) == 1
+    assert isinstance(jobs[0].trigger, IntervalTrigger)
 ```
 
 **Step 2: Run to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/test_deploy_poll.py -v -k build_scheduler`
-Expected: FAIL - `assert 1 == 2` (only the cron job is registered today).
+Expected: FAIL - today `build_scheduler` reads `settings.schedule_cron` (absent on `S`) and registers a `CronTrigger`, so the test raises `AttributeError` (or the `IntervalTrigger` assertion fails).
 
-**Step 3: Add the config setting**
+**Step 3: Update the config**
 
-In `app/config.py`, add after `db_path` (line ~21):
+In `app/config.py`, add the poll interval after `db_path` (line ~21):
 
 ```python
     deploy_poll_seconds: int = 180
 ```
 
-**Step 4: Add the interval import**
+Then remove the now-unused `schedule_cron` field (line ~17). Keep `schedule_tz`
+(it sets the scheduler timezone and the publish footer date). A leftover
+`SCHEDULE_CRON` in `.env` is ignored (`extra="ignore"`).
 
-In `app/scheduler.py`, add below the existing `CronTrigger` import (line ~4):
+**Step 4: Swap the scheduler imports**
+
+In `app/scheduler.py`, replace the `CronTrigger` import (line ~4) with:
 
 ```python
 from apscheduler.triggers.interval import IntervalTrigger
 ```
 
-**Step 5: Register the interval job**
+**Step 5: Rewrite `build_scheduler` as a single interval job**
 
-In `build_scheduler`, after the existing `scheduler.add_job(job, CronTrigger...)` call (lines ~36-37), add:
+Replace the whole `build_scheduler` body in `app/scheduler.py` (remove the old
+`job` closure and its `CronTrigger` `add_job` entirely) with:
 
 ```python
+def build_scheduler(bot, store, settings) -> AsyncIOScheduler:
+    scheduler = AsyncIOScheduler(timezone=settings.schedule_tz)
+
     async def deploy_job() -> None:
         async def _send(did, text):
             await send_for_review(bot, store, settings.admin_chat_id, did, text)
@@ -490,9 +499,12 @@ In `build_scheduler`, after the existing `scheduler.add_job(job, CronTrigger...)
 
     scheduler.add_job(deploy_job, IntervalTrigger(seconds=settings.deploy_poll_seconds),
                       max_instances=1, coalesce=True)
+    return scheduler
 ```
 
-The weekly cron job stays as-is (a backstop that catches a deploy the poll may have missed). It does not touch `last_seen_prod_sha`; the two coexist through `has_pending()`.
+Posting is now purely deploy-driven: no weekly job exists to recreate a cancelled
+draft. `send_for_review`, `generate_draft`, and `draft_release_notes` stay
+imported (used by the poll); the `CronTrigger` import is removed.
 
 **Step 6: Run to verify it passes**
 
@@ -539,7 +551,7 @@ When prod's SHA advances (a successful deploy), the bot drafts release notes ove
 - After a second deploy, an older pending draft can no longer be approved (its
   target build is no longer live). Cancel it; the poll rebuilds the combined
   range. This guard keeps the build footer honest.
-- The weekly `SCHEDULE_CRON` job remains as a backstop.
+- There is no weekly job - posting is purely deploy-driven, so a cancelled draft is never recreated on its own; only the next deploy rebuilds its range. `SCHEDULE_TZ` still sets the footer date timezone.
 ```
 
 **Step 2: Commit**
@@ -611,7 +623,7 @@ con.commit(); print('seeded last_seen =', sha)"
 | 1 | `last_seen_prod_sha` cursor + migration | `store.py`, `test_store.py` | migration auto-runs at boot |
 | 2 | accurate stale/preview publish message | `generate.py`, `bot.py`, `test_generate.py` | none until deploy |
 | 3 | `run_deploy_poll` tick logic | `scheduler.py`, `test_deploy_poll.py` | none until deploy |
-| 4 | interval job + config knob | `config.py`, `scheduler.py`, `test_deploy_poll.py` | poll starts at boot |
+| 4 | replace cron with single interval poll + config knob | `config.py`, `scheduler.py`, `test_deploy_poll.py` | poll replaces weekly cron at boot |
 | 5 | README | `README.md` | docs only |
 | Rollout | push + redeploy + seed cursor | - | GATED on approval |
 
