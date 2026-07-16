@@ -127,3 +127,17 @@ async def test_cancel_accumulates_range_on_next_deploy(tmp_path):
     d = store.get_draft(sent[-1])
     assert d["from_sha"] == "M0" and d["to_sha"] == "B"
     assert d["commit_count"] == 2                    # union: both commits included
+
+
+def test_build_scheduler_registers_only_the_deploy_poll():
+    from apscheduler.triggers.interval import IntervalTrigger
+    from app.scheduler import build_scheduler
+
+    class S:
+        schedule_tz = "Europe/Moscow"
+        deploy_poll_seconds = 180
+
+    sched = build_scheduler(bot=object(), store=object(), settings=S())
+    jobs = sched.get_jobs()
+    assert len(jobs) == 1
+    assert isinstance(jobs[0].trigger, IntervalTrigger)

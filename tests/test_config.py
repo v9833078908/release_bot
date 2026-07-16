@@ -11,5 +11,5 @@ def test_settings_load_from_env(monkeypatch):
     s = Settings(_env_file=None)
     assert s.admin_chat_id == 42
     assert s.min_features_to_publish == 1
-    assert s.schedule_cron == "0 12 * * FRI"
+    assert s.deploy_poll_seconds == 180
     assert s.prod_version_url.endswith("/api/v1/version")
