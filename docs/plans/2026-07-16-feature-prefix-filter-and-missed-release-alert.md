@@ -103,15 +103,29 @@ on redeploy with no prod-env edit, and is still overridable via `FEATURE_PREFIXE
 
 ---
 
-## Task 2: prefix promotion in `filter.py`
+## Task 2: precedence-correct prefix promotion in `filter.py`
 
 **Files:** `app/filter.py`, `tests/test_filter.py`
+
+**Design note (from review):** `_CC`'s `type` group is `\w+`, so it matches ANY single
+word — `UI: x`, `VIP: x`, `Gameplay: x` all parse as a conventional commit with an
+unrecognized type. If the allowlist is tried only when `_CC` fails, single-word
+`FEATURE_PREFIXES` entries can never be promoted. Correct precedence:
+1. conventional parse yielding a **recognized release type** (`feat/fix/perf`) wins;
+2. else try the explicit prefix allowlist -> promote to `feat`;
+3. else fall back to the plain conventional parse (non-release types `chore/docs/build`
+   are returned and dropped downstream exactly as today) or `None`.
 
 **Step 1 (test-first)** — add:
 ```python
 def test_feature_prefix_promoted_to_feat():
     c = parse_commit("s", "VIP Board: connection-loading gate", feature_prefixes=("VIP Board",))
     assert c == Commit("s", "feat", "VIP Board", "connection-loading gate", False)
+
+def test_one_word_feature_prefix_promoted():
+    # single-word prefix collides with _CC's type slot; must still promote (review fix)
+    c = parse_commit("s", "UI: dark mode toggle", feature_prefixes=("UI",))
+    assert c == Commit("s", "feat", "UI", "dark mode toggle", False)
 
 def test_feature_prefix_case_insensitive():
     assert parse_commit("s", "vip board: x", feature_prefixes=("VIP Board",)).type == "feat"
@@ -125,9 +139,12 @@ def test_feature_prefix_empty_subject_dropped():
 def test_non_prefixed_non_conventional_still_dropped():
     assert parse_commit("s", "Add prod DB retention prune script", feature_prefixes=("VIP Board",)) is None
 
-def test_conventional_takes_precedence_over_prefix():
+def test_unlisted_one_word_conventional_still_dropped():
+    assert not is_release_worthy(parse_commit("s", "UI: x"))   # UI not in allowlist -> non-release type
+
+def test_conventional_release_type_takes_precedence_over_prefix():
     c = parse_commit("s", "feat(topics): a", feature_prefixes=("feat",))
-    assert c == Commit("s", "feat", "topics", "a", False)   # regex path, not prefix path
+    assert c == Commit("s", "feat", "topics", "a", False)      # release-type regex path wins
 
 def test_filter_commits_promotes_prefix_and_keeps_dropping_noise():
     raw = [("s1", "VIP Board: gate"), ("s2", "chore: x"), ("s3", "Add script")]
@@ -144,15 +161,18 @@ def parse_commit(sha: str, message: str, feature_prefixes: tuple[str, ...] = ())
         return None
     first = lines[0].strip()
     m = _CC.match(first)
+    conv = None
     if m:
-        return Commit(sha, m["type"], m["scope"], m["subject"].strip(), bool(m["breaking"]))
-    for prefix in feature_prefixes:
+        conv = Commit(sha, m["type"], m["scope"], m["subject"].strip(), bool(m["breaking"]))
+        if conv.type in RELEASE_TYPES:
+            return conv                      # real conventional release commit wins
+    for prefix in feature_prefixes:          # else: explicit allowlist promotion
         p = prefix.strip()
         if p and first[: len(p) + 1].lower() == (p + ":").lower():
             subject = first[len(p) + 1:].strip()
             if subject:
                 return Commit(sha, "feat", p, subject, False)
-    return None
+    return conv                              # non-release conventional (dropped later) or None
 
 
 def filter_commits(raw, feature_prefixes: tuple[str, ...] = ()) -> list[Commit]:
@@ -163,12 +183,12 @@ def filter_commits(raw, feature_prefixes: tuple[str, ...] = ()) -> list[Commit]:
             out.append(c)
     return out
 ```
-Notes: conventional parse wins (prefix path only runs when `_CC` fails). Synthetic
-`feat` with `scope=<prefix>` passes `is_release_worthy` (`feat ∈ RELEASE_TYPES`, and a
-multi-word prefix never collides with the lowercase single-word `NOISE_SCOPES`).
+Notes: conventional release parse wins; a configured prefix equal to a release type
+(`"feat"`) is a no-op. Synthetic `feat` with `scope=<prefix>` passes `is_release_worthy`
+(multi/mixed-case prefixes never collide with the lowercase single-word `NOISE_SCOPES`).
 
 **Acceptance:** `pytest tests/test_filter.py` green.
-**Commit:** `feat(filter): promote allowlisted non-conventional prefixes to feat`
+**Commit:** `feat(filter): promote allowlisted prefixes to feat with release-type precedence`
 
 ---
 
