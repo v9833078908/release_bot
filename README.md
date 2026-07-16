@@ -93,7 +93,21 @@ When prod's SHA advances (a successful deploy), the bot drafts release notes ove
 - After a second deploy, an older pending draft can no longer be approved (its
   target build is no longer live). Cancel it; the poll rebuilds the combined
   range. This guard keeps the build footer honest.
+- If a deploy's whole range filters to **zero** release-worthy commits (commits exist,
+  but none are `feat/fix/perf` and none match `FEATURE_PREFIXES`), the bot DMs the
+  admin a heads-up listing the skipped subjects (never the channel) instead of going
+  silent. This is the all-filtered safety net only: a mixed range still drafts its
+  release-worthy commits and omits the non-matching ones without a per-commit alert.
 - There is no weekly job - posting is purely deploy-driven, so a cancelled draft is never recreated on its own; only the next deploy rebuilds its range. `SCHEDULE_TZ` still sets the footer date timezone.
+
+### Commit conventions
+
+Release notes are built from conventional commits (`feat`/`fix`/`perf`; other types
+and the noise scopes are dropped). Game Pulse also ships user-facing features under
+non-conventional prefixes like `VIP Board: ...`; list those in `FEATURE_PREFIXES`
+(comma-separated, default `VIP Board`) and a `"<prefix>: subject"` line is promoted
+to a `feat` (scope = the prefix). Recognized conventional release types always take
+precedence over a prefix.
 
 ### Prod deploy
 

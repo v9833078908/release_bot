@@ -255,7 +255,7 @@ By construction there are no server conflicts:
 7. Double trigger/publish -> APScheduler `max_instances=1` + `misfire_grace_time`; `pending->published` transition is transactional; a scheduled run with a live `pending` draft does not create a second one.
 8. LLM / channel-send failure -> marker NOT advanced, error to admin, retry via `/release_draft`.
 9. Post > 4096 -> split at group/line boundaries.
-10. Non-conventional commit -> dropped by default; add manually via reply-edit if needed.
+10. Non-conventional commit -> dropped by default, EXCEPT subjects matching a `FEATURE_PREFIXES` entry (e.g. `VIP Board:`), promoted to `feat` (added 2026-07-16 - real Game Pulse features use these prefixes, not `feat:`). If a deploy range has commits but zero release-worthy, the admin gets a heads-up DM instead of silence.
 11. Secret/internal text in a commit -> manual review gate + guardrail prompt + type filter.
 
 ## 9. Deployment layout
