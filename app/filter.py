@@ -18,14 +18,24 @@ class Commit:
     breaking: bool
 
 
-def parse_commit(sha: str, message: str) -> Commit | None:
+def parse_commit(sha: str, message: str, feature_prefixes: tuple[str, ...] = ()) -> Commit | None:
     lines = message.strip().splitlines()
     if not lines:
         return None
-    m = _CC.match(lines[0].strip())
-    if not m:
-        return None
-    return Commit(sha, m["type"], m["scope"], m["subject"].strip(), bool(m["breaking"]))
+    first = lines[0].strip()
+    m = _CC.match(first)
+    conv = None
+    if m:
+        conv = Commit(sha, m["type"], m["scope"], m["subject"].strip(), bool(m["breaking"]))
+        if conv.type in RELEASE_TYPES:
+            return conv                      # real conventional release commit wins
+    for prefix in feature_prefixes:          # else: explicit allowlist promotion
+        p = prefix.strip()
+        if p and first[: len(p) + 1].lower() == (p + ":").lower():
+            subject = first[len(p) + 1:].strip()
+            if subject:
+                return Commit(sha, "feat", p, subject, False)
+    return conv                              # non-release conventional (dropped later) or None
 
 
 def is_release_worthy(c: Commit) -> bool:
@@ -36,10 +46,10 @@ def is_release_worthy(c: Commit) -> bool:
     return True
 
 
-def filter_commits(raw: list[tuple[str, str]]) -> list[Commit]:
+def filter_commits(raw: list[tuple[str, str]], feature_prefixes: tuple[str, ...] = ()) -> list[Commit]:
     out: list[Commit] = []
     for sha, message in raw:
-        c = parse_commit(sha, message)
+        c = parse_commit(sha, message, feature_prefixes)
         if c and is_release_worthy(c):
             out.append(c)
     return out
