@@ -69,6 +69,10 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             await message.answer("Не удалось получить prod SHA (/version недоступен).")
         elif res["result"] == "no_changes":
             await message.answer("С прошлой публикации нет задеплоенных изменений.")
+        elif res["result"] == "no_release_worthy":
+            await message.answer(
+                f"Задеплоено {res['raw_count']} коммит(ов), но релиз-достойных нет. "
+                "Нужен conventional-commit префикс (feat/fix/perf) или запись в FEATURE_PREFIXES.")
         else:
             await message.answer(f"Нет релиз-достойных изменений (найдено {res['commit_count']}).")
 
@@ -98,6 +102,10 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             await send_for_review(bot, store, settings.admin_chat_id, res["draft_id"], res["text"])
         elif res["result"] == "no_changes":
             await message.answer("main не опережает маркер — показывать нечего.")
+        elif res["result"] == "no_release_worthy":
+            await message.answer(
+                f"Найдено {res['raw_count']} коммит(ов) в main, но релиз-достойных нет "
+                "(нужен feat/fix/perf префикс или FEATURE_PREFIXES).")
         else:
             await message.answer(f"Нет релиз-достойных изменений (найдено {res['commit_count']}).")
 
