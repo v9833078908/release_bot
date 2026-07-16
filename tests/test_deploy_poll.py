@@ -27,6 +27,10 @@ async def fake_llm(api_key, model, commits, hint):
     return Post(intro="i", features=["f"], improvements=[], fixes_summary=None)
 
 
+async def _noop(text):
+    pass
+
+
 def make(tmp_path, commits, sha):
     store = Store(str(tmp_path / "t.db"), initial_marker_sha="M0")
     gh = FakeGitHub(commits)
@@ -45,7 +49,7 @@ def make(tmp_path, commits, sha):
 async def test_new_deploy_drafts_and_sets_last_seen(tmp_path):
     store, gh, get_prod, send, sent, _ = make(tmp_path, [("s1", "feat: x")], "A")
     res = await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
-                                settings=Settings(), llm=fake_llm, send_review=send)
+                                settings=Settings(), llm=fake_llm, send_review=send, notify=_noop)
     assert res == "drafted"
     assert len(sent) == 1
     assert store.get_last_seen_prod_sha() == "A"
@@ -55,7 +59,7 @@ async def test_already_seen_does_nothing(tmp_path):
     store, gh, get_prod, send, sent, _ = make(tmp_path, [("s1", "feat: x")], "A")
     store.set_last_seen_prod_sha("A")
     res = await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
-                                settings=Settings(), llm=fake_llm, send_review=send)
+                                settings=Settings(), llm=fake_llm, send_review=send, notify=_noop)
     assert res == "already_seen"
     assert sent == []
 
@@ -65,7 +69,7 @@ async def test_pending_blocks_new_draft(tmp_path):
     store.create_draft(status="pending", trigger="manual", from_sha="M0", to_sha="Z",
                        commit_count=1, feature_count=1, raw_commits=[], draft_text="t")
     res = await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
-                                settings=Settings(), llm=fake_llm, send_review=send)
+                                settings=Settings(), llm=fake_llm, send_review=send, notify=_noop)
     assert res == "pending_exists"
     assert sent == []
 
@@ -73,17 +77,23 @@ async def test_pending_blocks_new_draft(tmp_path):
 async def test_no_prod_sha_leaves_cursor(tmp_path):
     store, gh, get_prod, send, sent, _ = make(tmp_path, [("s1", "feat: x")], None)
     res = await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
-                                settings=Settings(), llm=fake_llm, send_review=send)
+                                settings=Settings(), llm=fake_llm, send_review=send, notify=_noop)
     assert res == "no_prod_sha"
     assert store.get_last_seen_prod_sha() is None
 
 
-async def test_noise_only_deploy_sets_cursor_no_send(tmp_path):
+async def test_noise_only_deploy_notifies_and_sets_cursor(tmp_path):
     store, gh, get_prod, send, sent, _ = make(tmp_path, [("s1", "chore: x")], "A")
+    notes = []
+
+    async def notify(text):
+        notes.append(text)
+
     res = await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
-                                settings=Settings(), llm=fake_llm, send_review=send)
-    assert res == "no_changes"
+                                settings=Settings(), llm=fake_llm, send_review=send, notify=notify)
+    assert res == "no_release_worthy"
     assert sent == []
+    assert len(notes) == 1
     assert store.get_last_seen_prod_sha() == "A"
 
 
@@ -98,12 +108,12 @@ async def test_send_failure_rolls_back_and_retries(tmp_path):
 
     with pytest.raises(RuntimeError):
         await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
-                              settings=Settings(), llm=fake_llm, send_review=flaky_send)
+                              settings=Settings(), llm=fake_llm, send_review=flaky_send, notify=_noop)
     assert store.get_last_seen_prod_sha() is None   # cursor NOT advanced
     assert store.has_pending() is False             # draft rolled out of pending
 
     res = await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
-                                settings=Settings(), llm=fake_llm, send_review=flaky_send)
+                                settings=Settings(), llm=fake_llm, send_review=flaky_send, notify=_noop)
     assert res == "drafted"
     assert store.get_last_seen_prod_sha() == "A"
 
@@ -112,18 +122,18 @@ async def test_cancel_accumulates_range_on_next_deploy(tmp_path):
     store, ghA, get_prod, send, sent, prod = make(tmp_path, [("s1", "feat: a")], "A")
 
     res = await run_deploy_poll(store=store, github=ghA, get_prod_sha=get_prod,
-                                settings=Settings(), llm=fake_llm, send_review=send)
+                                settings=Settings(), llm=fake_llm, send_review=send, notify=_noop)
     assert res == "drafted"
     assert store.cancel(sent[-1]) is True           # human cancels A; marker frozen at M0
 
     res = await run_deploy_poll(store=store, github=ghA, get_prod_sha=get_prod,
-                                settings=Settings(), llm=fake_llm, send_review=send)
+                                settings=Settings(), llm=fake_llm, send_review=send, notify=_noop)
     assert res == "already_seen"                    # not resurrected on same SHA
 
     prod["sha"] = "B"
     ghB = FakeGitHub([("s1", "feat: a"), ("s2", "feat: b")])
     res = await run_deploy_poll(store=store, github=ghB, get_prod_sha=get_prod,
-                                settings=Settings(), llm=fake_llm, send_review=send)
+                                settings=Settings(), llm=fake_llm, send_review=send, notify=_noop)
     assert res == "drafted"
     d = store.get_draft(sent[-1])
     assert d["from_sha"] == "M0" and d["to_sha"] == "B"
@@ -142,3 +152,15 @@ def test_build_scheduler_registers_only_the_deploy_poll():
     jobs = sched.get_jobs()
     assert len(jobs) == 1
     assert isinstance(jobs[0].trigger, IntervalTrigger)
+
+
+async def test_notify_failure_leaves_cursor(tmp_path):
+    store, gh, get_prod, send, sent, _ = make(tmp_path, [("s1", "chore: x")], "A")
+
+    async def boom(text):
+        raise RuntimeError("tg down")
+
+    with pytest.raises(RuntimeError):
+        await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
+                              settings=Settings(), llm=fake_llm, send_review=send, notify=boom)
+    assert store.get_last_seen_prod_sha() is None

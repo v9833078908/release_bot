@@ -54,6 +54,10 @@ async def generate_draft(*, trigger, store, github, get_prod_sha, settings, llm,
         return {"result": "skipped", "commit_count": n, "feature_count": fcount}
 
     if n == 0:
+        if raw:
+            dropped = [((m.splitlines() or [""])[0]).strip()[:100] for _, m in raw][:15]
+            return {"result": "no_release_worthy", "commit_count": 0, "raw_count": len(raw),
+                    "dropped": dropped, "from_sha": from_sha, "to_sha": to_sha}
         return {"result": "no_changes", "commit_count": 0}
 
     post = await llm(settings.openrouter_api_key, settings.llm_model, commits, hint)

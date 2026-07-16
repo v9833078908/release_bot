@@ -140,3 +140,14 @@ async def test_feature_prefix_drafts_via_generate(store):
                                get_prod_sha=_prod("P"), settings=cfg, llm=_fake_llm, to_sha="P")
     assert res["result"] == "drafted"
     assert res["feature_count"] == 1
+
+
+async def test_no_release_worthy_when_raw_all_noise(store):
+    gh = FakeGitHub([("s1", "chore: x"), ("s2", "docs(plan): y")])
+    res = await generate_draft(trigger="deploy", store=store, github=gh,
+                               get_prod_sha=_prod("P"), settings=Cfg(), llm=_fake_llm, to_sha="P")
+    assert res["result"] == "no_release_worthy"
+    assert res["raw_count"] == 2
+    assert res["from_sha"] == "base0" and res["to_sha"] == "P"
+    assert any("chore: x" in d for d in res["dropped"])
+    assert store.has_pending() is False
