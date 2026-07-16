@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     min_features_to_publish: int = 1
     initial_marker_sha: str
     db_path: str = "data/release_bot.db"
+    feature_prefixes: str = "VIP Board"   # comma-separated; "<prefix>:" subjects -> feat
+
+    @property
+    def feature_prefix_list(self) -> list[str]:
+        return [p.strip() for p in self.feature_prefixes.split(",") if p.strip()]
 
 
 @lru_cache
