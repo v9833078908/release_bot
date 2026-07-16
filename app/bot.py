@@ -1,5 +1,7 @@
 import html
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
@@ -9,7 +11,7 @@ from aiogram.types import (
     CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message,
 )
 
-from app.formatter import split_message
+from app.formatter import split_message, finalize_publish
 from app.generate import generate_draft, regenerate_draft, is_publishable
 from app.llm import draft_release_notes
 
@@ -121,13 +123,20 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
                 "Пока нельзя опубликовать: изменения ещё не на проде (превью). "
                 "Опубликуй после прод-деплоя.", show_alert=True)
             return
+        release_no = store.claim_for_publish(did)
+        if release_no is None:
+            await cb.answer("Уже публикуется или опубликовано.")
+            return
+        when = datetime.now(ZoneInfo(settings.schedule_tz)).strftime("%d.%m.%Y")
+        final_text = finalize_publish(d["draft_text"], release_no, d["to_sha"], when)
         first = None
         try:
-            for chunk in split_message(d["draft_text"]):
+            for chunk in split_message(final_text):
                 sent = await bot.send_message(settings.channel_id, chunk, parse_mode="HTML")
                 first = first or sent
         except Exception:
             log.exception("publish to channel failed")
+            store.unclaim(did)
             await cb.answer("Не удалось отправить в канал (права бота?).", show_alert=True)
             return
         ok = store.publish(did, to_sha=d["to_sha"], channel_msg_id=first.message_id)

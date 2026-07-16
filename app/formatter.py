@@ -36,3 +36,10 @@ def split_message(text: str, limit: int = SPLIT_TARGET) -> list[str]:
     if current:
         chunks.append(current)
     return chunks
+
+
+def finalize_publish(text: str, release_no: int, build_sha: str, when: str) -> str:
+    lines = text.split("\n")
+    if lines and lines[0].endswith("</b>"):
+        lines[0] = lines[0][:-4] + f" · #{release_no}</b>"
+    return "\n".join(lines) + f"\n\n<i>сборка {build_sha[:8]} · {when}</i>"

@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, Integer, MetaData, Table, Text, create_engine, insert, select, update,
+    Column, Integer, MetaData, Table, Text, create_engine, func, insert, select, update,
 )
 
 metadata = MetaData()
@@ -29,6 +29,7 @@ drafts = Table(
     Column("draft_text", Text),
     Column("admin_msg_id", Integer),
     Column("channel_msg_id", Integer),
+    Column("release_no", Integer),
     Column("created_at", Text),
     Column("updated_at", Text),
 )
@@ -41,8 +42,12 @@ def _now() -> str:
 class Store:
     def __init__(self, db_path: str, initial_marker_sha: str):
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
-        self.engine = create_engine(f"sqlite:///{db_path}", future=True)
+        self.engine = create_engine(f"sqlite:///{db_path}", future=True, connect_args={"timeout": 30})
         metadata.create_all(self.engine)
+        with self.engine.begin() as conn:
+            cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(drafts)")}
+            if "release_no" not in cols:
+                conn.exec_driver_sql("ALTER TABLE drafts ADD COLUMN release_no INTEGER")
         with self.engine.begin() as conn:
             if conn.execute(select(publish_state.c.id).where(publish_state.c.id == 1)).first() is None:
                 conn.execute(insert(publish_state).values(
@@ -63,6 +68,29 @@ class Store:
         with self.engine.begin() as conn:
             return conn.execute(select(drafts.c.id)
                                 .where(drafts.c.status == "pending")).first() is not None
+
+    def next_release_no(self) -> int:
+        with self.engine.begin() as conn:
+            m = conn.execute(select(func.max(drafts.c.release_no))
+                             .where(drafts.c.status == "published")).scalar()
+            return (m or 0) + 1
+
+    def claim_for_publish(self, draft_id: int) -> int | None:
+        """Atomically move pending -> publishing and reserve the release number."""
+        with self.engine.begin() as conn:
+            m = conn.execute(select(func.max(drafts.c.release_no))
+                             .where(drafts.c.status == "published")).scalar()
+            release_no = (m or 0) + 1
+            res = conn.execute(update(drafts)
+                               .where(drafts.c.id == draft_id, drafts.c.status == "pending")
+                               .values(status="publishing", release_no=release_no, updated_at=_now()))
+            return release_no if res.rowcount else None
+
+    def unclaim(self, draft_id: int) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(update(drafts)
+                         .where(drafts.c.id == draft_id, drafts.c.status == "publishing")
+                         .values(status="pending", updated_at=_now()))
 
     def create_draft(self, *, status, trigger, from_sha, to_sha, commit_count,
                      feature_count, raw_commits, draft_text) -> int:
@@ -96,7 +124,7 @@ class Store:
     def publish(self, draft_id: int, *, to_sha: str, channel_msg_id: int) -> bool:
         with self.engine.begin() as conn:
             res = conn.execute(update(drafts)
-                               .where(drafts.c.id == draft_id, drafts.c.status == "pending")
+                               .where(drafts.c.id == draft_id, drafts.c.status.in_(("pending", "publishing")))
                                .values(status="published", channel_msg_id=channel_msg_id,
                                        updated_at=_now()))
             if res.rowcount == 0:

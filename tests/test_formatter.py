@@ -32,3 +32,12 @@ def test_split_on_line_boundaries():
 
 def test_short_message_single_chunk():
     assert split_message("hello", limit=100) == ["hello"]
+
+
+def test_finalize_publish_adds_number_and_footer():
+    from app.formatter import finalize_publish
+    base = render_html(Post(intro="i", features=["f"]))
+    out = finalize_publish(base, 2, "3388b82c0273890458427b55466763d5d5d5603f", "16.07.2026")
+    assert out.splitlines()[0] == "<b>🚀 Game Pulse — что нового · #2</b>"
+    assert "<i>сборка 3388b82c · 16.07.2026</i>" in out
+    assert out.count("#2") == 1

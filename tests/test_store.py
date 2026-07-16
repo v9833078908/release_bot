@@ -46,3 +46,43 @@ def test_has_pending(store):
                        to_sha="h", commit_count=1, feature_count=1,
                        raw_commits=[], draft_text="t")
     assert store.has_pending() is True
+
+
+def test_claim_reserves_number_then_publish(store):
+    did = store.create_draft(status="pending", trigger="manual", from_sha="base0",
+                             to_sha="h1", commit_count=1, feature_count=1,
+                             raw_commits=[], draft_text="t")
+    assert store.next_release_no() == 1
+    assert store.claim_for_publish(did) == 1
+    d = store.get_draft(did)
+    assert d["status"] == "publishing" and d["release_no"] == 1
+    assert store.claim_for_publish(did) is None  # already claimed -> no double send
+    assert store.publish(did, to_sha="h1", channel_msg_id=7) is True
+    assert store.get_draft(did)["release_no"] == 1
+    assert store.next_release_no() == 2
+
+
+def test_unclaim_restores_pending(store):
+    did = store.create_draft(status="pending", trigger="manual", from_sha="base0",
+                             to_sha="h1", commit_count=1, feature_count=1,
+                             raw_commits=[], draft_text="t")
+    store.claim_for_publish(did)
+    store.unclaim(did)
+    assert store.get_draft(did)["status"] == "pending"
+    assert store.claim_for_publish(did) == 1
+
+
+def test_release_no_migrated_on_existing_db(tmp_path):
+    import sqlite3
+    p = str(tmp_path / "old.db")
+    con = sqlite3.connect(p)
+    con.execute('CREATE TABLE drafts ('
+                'id INTEGER PRIMARY KEY AUTOINCREMENT, status TEXT NOT NULL, "trigger" TEXT NOT NULL, '
+                'from_sha TEXT, to_sha TEXT, commit_count INTEGER, feature_count INTEGER, '
+                'raw_commits TEXT, draft_text TEXT, admin_msg_id INTEGER, channel_msg_id INTEGER, '
+                'created_at TEXT, updated_at TEXT)')
+    con.commit(); con.close()
+    s = Store(p, initial_marker_sha="base0")  # migration must ALTER-add release_no
+    did = s.create_draft(status="pending", trigger="manual", from_sha="base0", to_sha="h",
+                         commit_count=1, feature_count=1, raw_commits=[], draft_text="t")
+    assert s.claim_for_publish(did) == 1
