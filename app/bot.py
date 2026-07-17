@@ -118,6 +118,28 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             f"Последняя публикация: {store.get_last_published_at()}\n"
             f"Черновик на ревью: {'да' if store.has_pending() else 'нет'}")
 
+    @dp.message(Command("redraft"))
+    async def cmd_redraft(message: Message) -> None:
+        if not _is_admin(message.chat.id):
+            return
+        p = store.get_pending()
+        if not p or p["status"] != "pending":
+            await message.answer("Нет черновика на ревью. Сначала собери его: /release_draft")
+            return
+        hint = message.text.partition(" ")[2].strip()
+        if not hint:
+            await message.answer("Добавь заметку: /redraft <что подчеркнуть или добавить>")
+            return
+        await message.answer("Пересобираю с учётом заметки...")
+        try:
+            text = await regenerate_draft(store=store, draft_id=p["id"], settings=settings,
+                                          llm=draft_release_notes, hint=hint)
+        except Exception:
+            log.exception("redraft failed")
+            await message.answer("Ошибка при пересборке (LLM/сеть). Попробуй ещё раз: /redraft <заметка>")
+            return
+        await send_for_review(bot, store, settings.admin_chat_id, p["id"], text)
+
     @dp.callback_query(F.data.startswith("pub:"))
     async def on_publish(cb: CallbackQuery) -> None:
         did = int(cb.data.split(":")[1])

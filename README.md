@@ -63,6 +63,12 @@ Registered in the Telegram command menu (`setMyCommands`) on boot.
   commit equals the current prod SHA).
 - `/status` — show the current marker, last publish time, and whether a draft
   is pending review.
+- `/redraft <note>` — regenerate the current pending draft from its cached
+  commits with an editor note appended to the LLM prompt. Use it to steer a
+  specific release, e.g. force-include an item the aggressive defaults would
+  drop (`/redraft упомяни новый LiteLLM-провайдер и улучшенную логику алертов`).
+  The note overrides the prompt's exclusion/banned-name rules for the items it
+  names, but not the infostyle. Marker and range are untouched.
 
 Release drafts are triggered automatically by prod deploys - see
 [Deploy-triggered drafts](#deploy-triggered-drafts) below.

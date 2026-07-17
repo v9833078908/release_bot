@@ -27,6 +27,7 @@ async def main() -> None:
         BotCommand(command="release_draft", description="Черновик релиз-поста (по проду)"),
         BotCommand(command="preview", description="Превью недеплоенных изменений (main)"),
         BotCommand(command="status", description="Маркер и статус черновика"),
+        BotCommand(command="redraft", description="Пересобрать черновик с заметкой"),
     ])
 
     dp = build_dispatcher(bot, store, settings)

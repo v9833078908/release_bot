@@ -64,6 +64,11 @@ Other rules:
 - Ignore entirely, never mention: documentation, internal, tooling, deploy, CI,
   build, tests, refactors.
 - Never invent. When unsure whether something is user-visible, drop it.
+- Editor note: if the user message contains an "Additional note from the editor",
+  it OVERRIDES the exclusion and banned-name rules for the items it names —
+  include and emphasize those, described in plain customer terms (the reliability
+  or capability the reader gains). It never overrides the infostyle: still
+  passive, concrete, with the "теперь можно ..." part, no hype, no imperative.
 
 intro: one factual sentence naming the single biggest USER-VISIBLE change, in the
 same passive style ("На доске VIP-игроков добавлены активация и импорт из
