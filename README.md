@@ -90,9 +90,12 @@ When prod's SHA advances (a successful deploy), the bot drafts release notes ove
 - The publish **marker** advances only on real publish. So if you **cancel** a
   draft, its commits are re-included in the next deploy's draft (the range keeps
   growing until you approve one).
-- After a second deploy, an older pending draft can no longer be approved (its
-  target build is no longer live). Cancel it; the poll rebuilds the combined
-  range. This guard keeps the build footer honest.
+- After a second deploy, an older pending draft whose target build is no longer live can
+  no longer be approved (Publish stays blocked). The next poll **auto-supersedes** it:
+  cancels the stale draft, strips its review buttons, and rebuilds the combined range as a
+  fresh draft - its commits fold back in, since the marker only moves on a real publish.
+  A pending draft still targeting the live prod build is left untouched. This keeps the
+  build footer honest with no manual cancel needed.
 - If a deploy's whole range filters to **zero** release-worthy commits (commits exist,
   but none are `feat/fix/perf` and none match `FEATURE_PREFIXES`), the bot DMs the
   admin a heads-up listing the skipped subjects (never the channel) instead of going

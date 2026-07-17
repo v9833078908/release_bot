@@ -10,7 +10,8 @@ from app.llm import draft_release_notes
 log = logging.getLogger(__name__)
 
 
-async def run_deploy_poll(*, store, github, get_prod_sha, settings, llm, send_review, notify) -> str:
+async def run_deploy_poll(*, store, github, get_prod_sha, settings, llm, send_review, notify,
+                          disable_review=None) -> str:
     """One poll tick. Returns a disposition string; raises on generate/send failure
     so the caller logs and retries next tick (last_seen left unchanged)."""
     prod = await get_prod_sha()
@@ -18,8 +19,18 @@ async def run_deploy_poll(*, store, github, get_prod_sha, settings, llm, send_re
         return "no_prod_sha"
     if prod == store.get_last_seen_prod_sha():
         return "already_seen"
-    if store.has_pending():
-        return "pending_exists"
+    pending = store.get_pending()
+    if pending is not None:
+        # A draft still targeting the live prod build (or one mid-publish) is a
+        # review legitimately in flight - leave it be.
+        if pending["status"] == "publishing" or pending["to_sha"] == prod:
+            return "pending_exists"
+        # Prod moved past the draft's target: it can no longer be published
+        # (publish_block_reason), so supersede it instead of blocking forever.
+        # Its commits fold back into the next range (marker unmoved).
+        store.cancel(pending["id"])
+        if disable_review is not None:
+            await disable_review(pending["admin_msg_id"])
     res = await generate_draft(trigger="deploy", store=store, github=github,
                                get_prod_sha=get_prod_sha, settings=settings, llm=llm,
                                to_sha=prod)
@@ -52,10 +63,18 @@ def build_scheduler(bot, store, settings) -> AsyncIOScheduler:
 
         async def _notify(text):
             await bot.send_message(settings.admin_chat_id, text)   # plain text, admin DM only
+
+        async def _disable(msg_id):   # best-effort: strip buttons off a superseded review
+            if msg_id is None:
+                return
+            try:
+                await bot.edit_message_reply_markup(settings.admin_chat_id, msg_id, reply_markup=None)
+            except Exception:
+                log.debug("could not disable stale review message %s", msg_id, exc_info=True)
         try:
             await run_deploy_poll(store=store, github=bot._gh, get_prod_sha=bot._get_prod_sha,
                                   settings=settings, llm=draft_release_notes,
-                                  send_review=_send, notify=_notify)
+                                  send_review=_send, notify=_notify, disable_review=_disable)
         except Exception:
             log.exception("deploy_poll tick failed")
 

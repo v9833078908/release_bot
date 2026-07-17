@@ -64,14 +64,33 @@ async def test_already_seen_does_nothing(tmp_path):
     assert sent == []
 
 
-async def test_pending_blocks_new_draft(tmp_path):
+async def test_pending_for_current_prod_blocks(tmp_path):
     store, gh, get_prod, send, sent, _ = make(tmp_path, [("s1", "feat: x")], "A")
-    store.create_draft(status="pending", trigger="manual", from_sha="M0", to_sha="Z",
+    store.create_draft(status="pending", trigger="manual", from_sha="M0", to_sha="A",
                        commit_count=1, feature_count=1, raw_commits=[], draft_text="t")
     res = await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
                                 settings=Settings(), llm=fake_llm, send_review=send, notify=_noop)
     assert res == "pending_exists"
     assert sent == []
+
+
+async def test_stale_pending_is_superseded(tmp_path):
+    store, gh, get_prod, send, sent, _ = make(tmp_path, [("s1", "feat: x")], "A")
+    stale = store.create_draft(status="pending", trigger="manual", from_sha="M0", to_sha="Z",
+                               commit_count=1, feature_count=1, raw_commits=[], draft_text="t")
+    disabled = []
+
+    async def disable_review(msg_id):
+        disabled.append(msg_id)
+
+    res = await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
+                                settings=Settings(), llm=fake_llm, send_review=send,
+                                notify=_noop, disable_review=disable_review)
+    assert res == "drafted"
+    assert store.get_draft(stale)["status"] == "cancelled"   # stale draft superseded, not blocking
+    assert sent and sent[-1] != stale                        # fresh draft sent for review
+    assert store.get_last_seen_prod_sha() == "A"
+    assert len(disabled) == 1                                # stale review buttons stripped
 
 
 async def test_no_prod_sha_leaves_cursor(tmp_path):

@@ -85,6 +85,14 @@ class Store:
             return conn.execute(select(drafts.c.id)
                                 .where(drafts.c.status.in_(("pending", "publishing")))).first() is not None
 
+    def get_pending(self) -> dict | None:
+        """The single draft awaiting review or mid-publish (pending/publishing), if any."""
+        with self.engine.begin() as conn:
+            row = conn.execute(select(drafts)
+                               .where(drafts.c.status.in_(("pending", "publishing")))
+                               .order_by(drafts.c.id.desc())).first()
+            return dict(row._mapping) if row else None
+
     def next_release_no(self) -> int:
         with self.engine.begin() as conn:
             m = conn.execute(select(func.max(drafts.c.release_no))
