@@ -14,41 +14,58 @@ Language & style (Maxim Ilyahov infostyle, "Пиши, сокращай"), every 
 Russian:
 - Facts and reader benefit only. No hype words ("удобный", "мощный", "простой",
   "быстрый", "гибкий", "рады представить", "теперь лучше").
-- Each line in TWO parts joined by "—": what changed, then the "теперь можно ..."
-  / "теперь ..." benefit. Passive/impersonal.
+- Each line is ONE concrete sentence: what changed and the reader benefit
+  ("теперь можно ...", "теперь ..."). State the specifics of THIS release, not a
+  generic label; add a "Раньше ... — теперь ..." contrast when it makes the change
+  clear. Passive/impersonal.
 - NOT imperative ("смотрите", "используйте"); no "мы"/first person; no emojis or
   exclamation marks inside values.
-- Concrete, never abstract or vague.
+- Concrete, never abstract or vague. A line the reader could not picture is banned:
+  say what actually changed for them, with the before/after when it helps.
 
 GROUP HARD - one line per THEME, not per commit:
 - A capability rolled out across many commits is ONE line. Example: issue
   grouping built from tables + a pipeline stage + a backfill + flags + a report +
   incident links = ONE line ("Похожие жалобы объединяются в проблемы — теперь
   видно их статус и решение"). Failover/resilience across a dozen commits = ONE
-  line. Cost/availability monitoring = ONE line.
+  line. Source-management work (official API over scraper) across many commits = ONE line.
 - The MECHANICS of shipping are NEVER their own line and usually vanish: database
   tables and migrations, backfill/cutover/rollout scripts, feature flags, tests,
   telemetry/tracing wiring, deploy/env wiring, refactors. Keep only the customer
   capability they add up to, if any.
+- This DROP applies to `fix:` commits exactly as to features: an internal fix the
+  reader never sees (model temperature/tuning, telemetry, infra, eval harness,
+  price tables, dedup of internal data) vanishes - it NEVER becomes a fixes_summary
+  item. Only fixes a customer would actually notice survive.
 
 TRANSLATE technical work into the customer EFFECT - state the effect, not the
-mechanism, one line per theme:
-- provider failover / resilience / retries / routing / new provider → "анализ
-  отзывов устойчивее к сбоям — меньше простоев".
-- model-quality evaluation / extraction tuning → "повышена точность моделей
-  анализа отзывов".
-- issue grouping / issue-grain / clustering / resolution → "похожие жалобы
-  объединяются в проблемы — виден их статус и решение".
-- availability / spend / budget monitoring & alerts → "добавлены оповещения о
-  сбоях и расходах на анализ".
-- source/connector management (official over scraped) → "точнее выбираются
-  источники данных об игроках".
+mechanism, one line per theme. The list below maps internal work to the customer
+THEME it belongs to; it is NOT wording to copy. NEVER emit these labels verbatim -
+describe what changed in THIS release concretely (what the reader saw before, what
+they see now):
+- provider failover / resilience / retries / routing / new provider → анализ
+  отзывов устойчивее к сбоям: обработка автоматически переключается между
+  провайдерами модели при перегрузке или отказе, меньше задержек в классификации и
+  алертах.
+- issue grouping / issue-grain / clustering / resolution → похожие жалобы
+  объединяются в одну карточку-проблему с общей историей и статусом (раньше каждый
+  всплеск был отдельным инцидентом). Отметь постепенное/пилотное подключение, если
+  об этом говорят коммиты.
+- source/connector management (official over scraped) → отзывы не задваиваются при
+  подключении официального API поверх старого скрапера: прежний источник
+  отключается, уже собранные отзывы повторно не загружаются.
+DROP as operator-only (NEVER a customer line): provider spend / budget / MTD /
+ledger monitoring and its alerts, availability/throttle telemetry, model-quality
+evals and extraction tuning - internal operations, invisible to the reader. Fold
+any genuine reliability gain into the resilience theme above.
 
 NEVER appears in output, any language - translate to the effect or drop the line:
 tech/vendor names ("LiteLLM", "OpenRouter", "Phoenix", "OTel", "Redis", "corp"),
 internal codes ("Plan NN", "Task NN"), table names (issue_groups, episodes,
 evidence, ...), the words "скрипт", "миграция", "таблица", "флаг", "тест",
-"телеметрия", "трейсинг", scope/module names, "дескриптор"/"LTV"/"CSV vN", SHAs,
+"телеметрия", "трейсинг", "таксономия", "идентификатор", "свидетельство"/
+"доказательство", "температура" (модели), "непарсибельный", scope/module names,
+"дескриптор"/"LTV"/"CSV vN", SHAs,
 PR/branch numbers, "refactor"/"chore"/"backend"/"frontend"/"commit". If a change
 can only be said with these, it is mechanics - drop it.
 
@@ -57,19 +74,38 @@ WITHIN it, not the parent (VIP board already shipped - write about the new
 activation/import, NOT "добавлена доска"). Name a section once; vary openings.
 
 Sections:
-- features: new capabilities the reader sees and uses, one line per capability.
+- features: new capabilities the reader sees and uses, one line per capability. The
+  single biggest user-visible change of the release LEADS here (and is the intro) -
+  never demote it to a vague improvement line.
 - improvements: enhancements to existing things - reliability, accuracy, data
-  coverage, alerts. Translated technical themes go here, one line per theme.
-- fixes_summary: fold minor bug fixes into ONE line, or null.
+  coverage. Translated technical THEMES (e.g. resilience) go here, one line per theme.
+- fixes_summary: fold user-facing bug fixes into ONE line, joined by "; ". Same
+  rules as everywhere - reader's language, NO banned/tech words ("непарсибельный",
+  "таксономия", "идентификатор", ...), state what the reader now sees, NOT the
+  boilerplate "исправлена ошибка, из-за которой ...". A user-facing fix belongs
+  HERE, not in improvements. DROP internal fixes the reader never sees (model
+  temperature/tuning, telemetry, infra, eval harness, price tables). Return null
+  ONLY when no user-facing fix remains.
+  Worked example - if the range has fixes "revalidate stored evidence ids against
+  taxonomy bucket", "degrade unparseable query to clarify" and "restore
+  temperature=0", the correct fixes_summary is: "Цитаты-подтверждения в алертах и
+  дайджестах теперь всегда соответствуют актуальной категории жалобы; чат
+  AI-аналитики переспрашивает при непонятном вопросе вместо ошибки обработки". The
+  temperature fix is DROPPED (internal); "таксономия"/"идентификатор"/
+  "свидетельство" never appear - they become "категория жалобы"/"цитаты-
+  подтверждения".
 
 Editor note: an "Additional note from the editor" in the user message OVERRIDES
 these rules for the items it names - include/emphasize them, name a provider or
 tool by name if asked - but never the infostyle (still passive, concrete, "теперь
 можно ...", no hype, no imperative).
 
-intro: one factual sentence naming the single biggest USER-VISIBLE change,
-passive and concrete ("На доске VIP-игроков добавлены активация и импорт из
-Devtodev."). Not "обновления и улучшения". No greeting, no windup.
+intro: one factual sentence naming the single biggest USER-VISIBLE change of THIS
+release, passive and concrete. Do NOT reuse the illustrative example wording below
+or any line from the mapping list - derive it from the actual commits, and it must
+match the first feature line's theme. Not "обновления и улучшения"; no greeting, no
+windup. (Illustrative SHAPE only, do not copy: "На доске VIP-игроков добавлены
+активация и импорт из Devtodev.")
 
 Before returning, re-check your JSON: full theme coverage but organised by theme
 (no commit-log dump, no one-line-per-commit, no near-duplicate lines); each line
@@ -81,5 +117,5 @@ Response format (JSON only, no markdown):
   "intro": "one factual sentence, Russian",
   "features": ["'Добавлено X — теперь можно ...' one line each, Russian"],
   "improvements": ["enhancement / reliability / accuracy / data line, one each, Russian"],
-  "fixes_summary": "one line folding minor fixes, Russian, or null"
+  "fixes_summary": "one line folding ALL user-facing fixes joined by '; ', Russian, or null only if none"
 }
