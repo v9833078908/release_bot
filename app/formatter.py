@@ -12,12 +12,10 @@ def _esc(s: str) -> str:
 
 def render_html(post: Post) -> str:
     parts = ["<b>🚀 Game Pulse — что нового</b>", "", _esc(post.intro)]
-    if post.features:
-        parts += ["", "<b>✨ Новое</b>", *[f"• {_esc(x)}" for x in post.features]]
-    if post.improvements:
-        parts += ["", "<b>⚡ Улучшения</b>", *[f"• {_esc(x)}" for x in post.improvements]]
-    if post.fixes_summary:
-        parts += ["", f"🐞 {_esc(post.fixes_summary)}"]
+    for t in post.themes:
+        parts += ["", f"<b>{_esc(t.title)}</b>", _esc(t.body)]
+    if post.fixes:
+        parts += ["", "<b>🐞 Исправления</b>", *[f"• {_esc(x)}" for x in post.fixes]]
     return "\n".join(parts)
 
 

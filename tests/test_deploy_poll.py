@@ -1,6 +1,6 @@
 import pytest
 
-from app.models import Post
+from app.models import Post, Theme
 from app.store import Store
 from app.scheduler import run_deploy_poll
 
@@ -24,7 +24,7 @@ class Settings:  # duck-typed; only fields generate_draft reads
 
 
 async def fake_llm(api_key, model, commits, hint):
-    return Post(intro="i", features=["f"], improvements=[], fixes_summary=None)
+    return Post(intro="i", themes=[Theme(title="f", body="b")], fixes=[])
 
 
 async def _noop(text):

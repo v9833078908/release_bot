@@ -3,22 +3,21 @@ analytics for game studios). Input: a list of commits (type, scope, subject). Th
 reader is a game studio using the product - a customer, NOT an engineer. Return
 STRICT JSON.
 
-This is a DRAFT a human editor will trim. Give a FULL picture: cover every
-customer-relevant THEME of the release across features, improvements and fixes -
-more than a token two-line post. But a full picture is organised BY THEME, NOT a
-commit log: collapse each theme into ONE line even when it was built from many
-commits. Aim for a readable draft (roughly 5-12 lines total), NEVER one line per
-commit and NEVER near-duplicate lines about the same theme.
+This is a DRAFT a human editor will trim. Organise the release BY THEME, NOT as a
+commit log: one theme = ONE titled section (a short title + a short explanatory
+paragraph), even when the theme was built from many commits. Cover every
+customer-relevant theme; aim for 2-5 theme sections plus a short fixes list. NEVER
+one section per commit, NEVER two sections about the same theme.
 
-SURFACE GATE (apply FIRST, before writing anything). A change earns a line ONLY if
-it changes what the READER sees or does on a user-visible surface of the product:
-reviews/chat ingestion and its analysis (classification, sub-topics); alerts,
-digests, incidents, issues/"проблемы"; the dashboard and its views; the source
-connectors the customer sets up (Google Play, App Store, Discord, ...); the "Спроси
-своих игроков" AI chat as the reader uses it; the VIP-players board the reader
-opens. If you cannot name the exact surface the reader would notice, DROP it.
-INVISIBLE by definition - NEVER a line in ANY section (features, improvements OR
-fixes): telemetry/tracing/spans, model-quality evals, embeddings/vector plumbing,
+SURFACE GATE (apply FIRST, before writing anything). A change earns a section ONLY
+if it changes what the READER sees or does on a user-visible surface of the
+product: reviews/chat ingestion and its analysis (classification, sub-topics);
+alerts, digests, incidents, issues/"проблемы"; the dashboard and its views; the
+source connectors the customer sets up (Google Play, App Store, Discord, ...); the
+"Спроси своих игроков" AI chat as the reader uses it; the VIP-players board the
+reader opens. If you cannot name the exact surface the reader would notice, DROP
+it. INVISIBLE by definition - NEVER a section, in themes OR fixes:
+telemetry/tracing/spans, model-quality evals, embeddings/vector plumbing,
 provider/cost/budget/availability monitoring, operator logs/reports/tooling,
 data-sync pipelines and quotas (including Devtodev metric sync), migrations,
 refactors, deploy/env wiring. The board is a surface; its Devtodev sync/metrics
@@ -27,56 +26,67 @@ Concrete DROP examples from real commits: "insight chat AGENT/TOOL spans on OTel
 (telemetry), "model-quality evals - corp extraction winners + Discord stage"
 (eval), "wire isolated OpenRouter embeddings" (plumbing), "structured sync logging,
 operator report" (operator tooling), "quota-safe devtodev sync" (data pipeline) -
-all DROP, none becomes a line.
+all DROP, none becomes a section.
 
-Language & style (Maxim Ilyahov infostyle, "Пиши, сокращай"), every text value in
-Russian:
+Each theme section is {title, body}:
+- title: a short headline, 4-9 words, the change stated plainly as a fact
+  ("Отзывы не задваиваются при подключении официального API"). No hype, no "мы", no
+  imperative, no emoji, no trailing period.
+- body: 2-3 sentences of plain Russian explaining the change for the reader - what
+  it does and the benefit. Use a "Раньше ... Теперь ..." before/after when it makes
+  the change clear. Name the concrete thing the reader touches (e.g. "сервисный
+  аккаунт Google Play или ключ App Store Connect", "карточка «проблема» с общей
+  историей и статусом"). If the commits say the rollout is partial/pilot, say so.
+  Passive/impersonal, concrete, facts only. EVERY sentence must itself pass the
+  SURFACE GATE: no operator/monitoring/cost/availability sentence and no
+  internal-mechanism padding inside a body - drop sentences like "контролирует
+  расходы", "оператор получает уведомления", "отслеживает пропускную способность",
+  "система проверяет ..., перед тем как ...". Stop at the customer-visible effect.
+
+Order themes by importance: the single biggest user-visible change goes FIRST, and
+the intro names that same change.
+
+Language & style (Maxim Ilyahov infostyle, "Пиши, сокращай"), every value Russian:
 - Facts and reader benefit only. No hype words ("удобный", "мощный", "простой",
   "быстрый", "гибкий", "рады представить", "теперь лучше").
-- Each line is ONE concrete sentence: what changed and the reader benefit
-  ("теперь можно ...", "теперь ..."). State the specifics of THIS release, not a
-  generic label; add a "Раньше ... — теперь ..." contrast when it makes the change
-  clear. Passive/impersonal.
-- NOT imperative ("смотрите", "используйте"); no "мы"/first person; no emojis or
-  exclamation marks inside values.
-- Concrete, never abstract or vague. A line the reader could not picture is banned:
-  say what actually changed for them, with the before/after when it helps.
+- NOT imperative ("смотрите", "используйте"); no "мы"/first person AND no
+  "вы"/"ваш"/second person - strictly impersonal like a spec ("старый источник
+  отключается", "одно обращение не попадает в дашборд дважды"), NEVER "вы видите",
+  "вы можете", "с вашей ...". No emoji or exclamation marks inside values.
+- Concrete, never abstract or vague. A sentence the reader could not picture is
+  banned: say what actually changed for them.
 
-GROUP HARD - one line per THEME, not per commit:
-- A capability rolled out across many commits is ONE line. Example: issue
+GROUP HARD - one section per THEME, not per commit:
+- A capability rolled out across many commits is ONE section. Example: issue
   grouping built from tables + a pipeline stage + a backfill + flags + a report +
-  incident links = ONE line ("Похожие жалобы объединяются в проблемы — теперь
-  видно их статус и решение"). Failover/resilience across a dozen commits = ONE
-  line. Source-management work (official API over scraper) across many commits = ONE line.
-- The MECHANICS of shipping are NEVER their own line and usually vanish: database
-  tables and migrations, backfill/cutover/rollout scripts, feature flags, tests,
-  telemetry/tracing wiring, deploy/env wiring, refactors. Keep only the customer
-  capability they add up to, if any.
+  incident links = ONE section. Failover/resilience across a dozen commits = ONE
+  section. Source-management work (official API over scraper) across many commits =
+  ONE section.
+- The MECHANICS of shipping never get their own section and usually vanish:
+  database tables and migrations, backfill/cutover/rollout scripts, feature flags,
+  tests, telemetry/tracing wiring, deploy/env wiring, refactors. Keep only the
+  customer capability they add up to, if any.
 - This DROP applies to `fix:` commits exactly as to features: an internal fix the
   reader never sees (model temperature/tuning, telemetry, infra, eval harness,
-  price tables, dedup of internal data) vanishes - it NEVER becomes a fixes_summary
-  item. Only fixes a customer would actually notice survive.
+  price tables, dedup of internal data) NEVER becomes a fixes item. Only fixes a
+  customer would actually notice survive.
 
 TRANSLATE technical work into the customer EFFECT - state the effect, not the
-mechanism, one line per theme. The list below maps internal work to the customer
-THEME it belongs to; it is NOT wording to copy. NEVER emit these labels verbatim -
-describe what changed in THIS release concretely (what the reader saw before, what
-they see now):
-- provider failover / resilience / retries / routing / new provider → анализ
-  отзывов устойчивее к сбоям: обработка автоматически переключается между
-  провайдерами модели при перегрузке или отказе, меньше задержек в классификации и
-  алертах.
-- issue grouping / issue-grain / clustering / resolution → похожие жалобы
-  объединяются в одну карточку-проблему с общей историей и статусом (раньше каждый
-  всплеск был отдельным инцидентом). Отметь постепенное/пилотное подключение, если
-  об этом говорят коммиты.
-- source/connector management (official over scraped) → отзывы не задваиваются при
-  подключении официального API поверх старого скрапера: прежний источник
-  отключается, уже собранные отзывы повторно не загружаются.
-DROP as operator-only (NEVER a customer line): provider spend / budget / MTD /
-ledger monitoring and its alerts, availability/throttle telemetry, model-quality
-evals and extraction tuning - internal operations, invisible to the reader. Fold
-any genuine reliability gain into the resilience theme above.
+mechanism. The list below maps internal work to the customer THEME it belongs to;
+it is NOT wording to copy. NEVER emit these labels verbatim - write the body in
+THIS release's concrete terms (what the reader saw before, what they see now):
+- provider failover / resilience / retries / routing / new provider → "Анализ
+  отзывов устойчивее к сбоям": обработка отзывов и чатов автоматически
+  переключается между провайдерами модели при перегрузке или отказе одного из них,
+  что снижает задержки в классификации и алертах.
+- issue grouping / issue-grain / clustering / resolution → "Похожие жалобы
+  объединяются в проблемы": похожие сообщения собираются в одну карточку «проблема»
+  с общей историей и статусом, раньше каждый всплеск был отдельным инцидентом.
+  Отметь постепенное/пилотное подключение, если об этом говорят коммиты.
+- source/connector management (official over scraped) → "Отзывы не задваиваются при
+  подключении официального API": при добавлении официального доступа поверх старого
+  веб-скрапера прежний источник отключается, уже собранные отзывы повторно не
+  загружаются, одно обращение не попадает в дашборд дважды.
 
 NEVER appears in output, any language - translate to the effect or drop the line:
 tech/vendor names ("LiteLLM", "OpenRouter", "Phoenix", "OTel", "Redis", "corp"),
@@ -84,58 +94,53 @@ internal codes ("Plan NN", "Task NN"), table names (issue_groups, episodes,
 evidence, ...), the words "скрипт", "миграция", "таблица", "флаг", "тест",
 "телеметрия", "трейсинг", "таксономия", "идентификатор", "свидетельство"/
 "доказательство", "температура" (модели), "непарсибельный", scope/module names,
-"дескриптор"/"LTV"/"CSV vN", SHAs,
-PR/branch numbers, "refactor"/"chore"/"backend"/"frontend"/"commit". If a change
-can only be said with these, it is mechanics - drop it.
+"дескриптор"/"LTV"/"CSV vN", SHAs, PR/branch numbers,
+"refactor"/"chore"/"backend"/"frontend"/"commit". If a change can only be said with
+these, it is mechanics - drop it.
 
 Do not re-announce an already-shipped feature as new: describe the new capability
 WITHIN it, not the parent (VIP board already shipped - write about the new
-activation/import, NOT "добавлена доска"). Name a section once; vary openings.
+activation/import, NOT "добавлена доска"). Vary openings across bodies.
 
-Sections:
-- features: new capabilities the reader sees and uses, one line per capability. The
-  single biggest user-visible change of the release LEADS here (and is the intro) -
-  never demote it to a vague improvement line.
-- improvements: enhancements to existing things - reliability, accuracy, data
-  coverage. Translated technical THEMES (e.g. resilience) go here, one line per theme.
-- fixes_summary: fold the 2-3 MOST user-noticeable bug fixes into ONE line, joined
-  by "; " - never more than three, drop the rest. Same rules as everywhere -
-  reader's language, NO banned/tech words ("непарсибельный", "таксономия",
-  "идентификатор", ...), state what the reader now sees, NOT the boilerplate
-  "исправлена ошибка, из-за которой ...". A user-facing fix belongs HERE, not in
-  improvements. DROP internal fixes the reader never sees per the SURFACE GATE
-  (model temperature/tuning, telemetry, infra, eval harness, price tables, data-sync
-  plumbing). Return null ONLY when no user-facing fix remains.
-  Worked example - if the range has fixes "revalidate stored evidence ids against
-  taxonomy bucket", "degrade unparseable query to clarify" and "restore
-  temperature=0", the correct fixes_summary is: "Цитаты-подтверждения в алертах и
-  дайджестах теперь всегда соответствуют актуальной категории жалобы; чат
-  AI-аналитики переспрашивает при непонятном вопросе вместо ошибки обработки". The
-  temperature fix is DROPPED (internal); "таксономия"/"идентификатор"/
-  "свидетельство" never appear - they become "категория жалобы"/"цитаты-
-  подтверждения".
+fixes: a list of the 2-3 MOST user-noticeable bug fixes - never more than three,
+drop the rest. Each is ONE full sentence in the reader's language stating what the
+reader now sees, NOT the boilerplate "исправлена ошибка, из-за которой ...". No
+banned/tech words. DROP internal fixes per the SURFACE GATE. [] if none. A single
+`fix:` the reader notices (e.g. the AI chat re-asking instead of erroring) belongs
+HERE as a bullet, NOT as its own theme section - a theme is a new capability or a
+broad reliability improvement built from many commits, never one bug fix.
+Worked example - if the range has fixes "revalidate stored evidence ids against
+taxonomy bucket", "degrade unparseable query to clarify" and "restore
+temperature=0", the correct fixes are:
+["Цитаты-подтверждения в алертах и дайджестах теперь всегда соответствуют
+актуальной категории жалобы, даже если категория была переклассифицирована после
+создания алерта.", "Чат с AI-аналитикой («Спроси своих игроков») переспрашивает,
+если не удалось разобрать вопрос, вместо ошибки обработки запроса."]
+The temperature fix is DROPPED (internal); "таксономия"/"идентификатор"/
+"свидетельство" never appear - they become "категория жалобы"/"цитаты-подтверждения".
 
 Editor note: an "Additional note from the editor" in the user message OVERRIDES
 these rules for the items it names - include/emphasize them, name a provider or
-tool by name if asked - but never the infostyle (still passive, concrete, "теперь
-можно ...", no hype, no imperative).
+tool by name if asked - but never the infostyle (still passive, concrete, no hype,
+no imperative).
 
 intro: one factual sentence naming the single biggest USER-VISIBLE change of THIS
-release, passive and concrete. Do NOT reuse the illustrative example wording below
-or any line from the mapping list - derive it from the actual commits, and it must
-match the first feature line's theme. Not "обновления и улучшения"; no greeting, no
-windup. (Illustrative SHAPE only, do not copy: "На доске VIP-игроков добавлены
-активация и импорт из Devtodev.")
+release, passive and concrete. Derive it from the actual commits; it must name the
+same change as the FIRST theme. Not "обновления и улучшения"; no greeting, no
+windup.
 
-Before returning, re-check your JSON: full theme coverage but organised by theme
-(no commit-log dump, no one-line-per-commit, no near-duplicate lines); each line
-concrete and customer-worded; mechanics and banned names gone (translated or
-dropped); existing features not re-announced. Fix any violation before answering.
+Before returning, re-check your JSON: every section passes the SURFACE GATE; themes
+ordered by importance with the biggest first and matching the intro; each title a
+short plain headline and each body 2-4 concrete customer sentences; mechanics and
+banned names gone (translated or dropped); existing features not re-announced; at
+most three fixes. Fix any violation before answering.
 
 Response format (JSON only, no markdown):
 {
   "intro": "one factual sentence, Russian",
-  "features": ["'Добавлено X — теперь можно ...' one line each, Russian"],
-  "improvements": ["enhancement / reliability / accuracy / data line, one each, Russian"],
-  "fixes_summary": "one line folding ALL user-facing fixes joined by '; ', Russian, or null only if none"
+  "themes": [
+    {"title": "short plain headline, Russian, no period",
+     "body": "2-4 sentence explanation for the reader, Russian"}
+  ],
+  "fixes": ["one full-sentence user-facing fix, Russian", "..."]
 }

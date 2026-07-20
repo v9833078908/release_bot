@@ -3,7 +3,7 @@ import json
 import pytest
 
 from app.generate import generate_draft, regenerate_draft, is_publishable, publish_block_reason
-from app.models import Post
+from app.models import Post, Theme
 from app.store import Store
 
 
@@ -23,7 +23,7 @@ class Cfg:
 
 
 async def _fake_llm(*a, **k):
-    return Post(intro="I", features=["F"], improvements=[], fixes_summary="melochi")
+    return Post(intro="I", themes=[Theme(title="F", body="B")], fixes=["melochi"])
 
 
 def _prod(sha):
@@ -85,7 +85,7 @@ async def test_regenerate_reuses_cached_commits(store):
 
     async def llm(_key, _model, commits, hint=None):
         assert commits[0].subject == "y" and hint == "короче"
-        return Post(intro="NEW", features=[], improvements=[], fixes_summary=None)
+        return Post(intro="NEW", themes=[], fixes=[])
 
     text = await regenerate_draft(store=store, draft_id=did, settings=Cfg(), llm=llm, hint="короче")
     assert "NEW" in text

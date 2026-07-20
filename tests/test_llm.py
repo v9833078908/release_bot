@@ -19,27 +19,41 @@ def test_build_user_message_lists_commits_and_hint():
 async def test_draft_release_notes_parses_json_to_post():
     respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
         return_value=httpx.Response(200, json={"choices": [{"message": {"content":
-            '{"intro":"i","features":["f"],"improvements":[],"fixes_summary":null}'}}]}))
+            '{"intro":"i","themes":[{"title":"T","body":"B"}],"fixes":["f"]}'}}]}))
     out = await draft_release_notes("key", "model", [Commit("s", "feat", "x", "y", False)])
     assert isinstance(out, Post)
-    assert out.intro == "i" and out.features == ["f"] and out.fixes_summary is None
+    assert out.intro == "i"
+    assert out.themes[0].title == "T" and out.themes[0].body == "B"
+    assert out.fixes == ["f"]
 
 
 @respx.mock
 async def test_draft_release_notes_strips_code_fence():
     respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
         return_value=httpx.Response(200, json={"choices": [{"message": {"content":
-            '```json\n{"intro":"i","features":[],"improvements":[],"fixes_summary":"x"}\n```'}}]}))
+            '```json\n{"intro":"i","themes":[],"fixes":["x"]}\n```'}}]}))
     out = await draft_release_notes("key", "model", [])
-    assert out.fixes_summary == "x"
+    assert out.fixes == ["x"]
 
 
 @respx.mock
 async def test_draft_release_notes_retries_once_on_bad_json():
-    good = '{"intro":"ok","features":[],"improvements":[],"fixes_summary":null}'
+    good = '{"intro":"ok","themes":[],"fixes":[]}'
     respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
         side_effect=[
             httpx.Response(200, json={"choices": [{"message": {"content": '{"intro":"trunc'}}]}),
+            httpx.Response(200, json={"choices": [{"message": {"content": good}}]}),
+        ])
+    out = await draft_release_notes("key", "model", [])
+    assert out.intro == "ok"
+
+
+@respx.mock
+async def test_draft_release_notes_retries_on_null_content():
+    good = '{"intro":"ok","themes":[],"fixes":[]}'
+    respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
+        side_effect=[
+            httpx.Response(200, json={"choices": [{"message": {"content": None}}]}),
             httpx.Response(200, json={"choices": [{"message": {"content": good}}]}),
         ])
     out = await draft_release_notes("key", "model", [])
