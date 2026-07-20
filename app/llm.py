@@ -29,11 +29,12 @@ def _parse_post(content: str) -> Post:
         if s != -1 and e > s:
             content = content[s:e + 1]
     data = json.loads(content)
-    themes = [
-        Theme(title=(t.get("title") or "").strip(), body=(t.get("body") or "").strip())
-        for t in (data.get("themes") or [])
-        if (t.get("title") or t.get("body"))
-    ]
+    themes = []
+    for t in (data.get("themes") or []):
+        title = (t.get("title") or "").strip()
+        body = (t.get("body") or "").strip()
+        if title or body:                       # drop blank / whitespace-only themes
+            themes.append(Theme(title=title, body=body))
     return Post(
         themes=themes,
         fixes=[f.strip() for f in (data.get("fixes") or []) if f and f.strip()],

@@ -57,3 +57,16 @@ async def test_draft_release_notes_retries_on_null_content():
         ])
     out = await draft_release_notes("key", "model", [])
     assert out.themes[0].title == "ok"
+
+
+@respx.mock
+async def test_draft_release_notes_drops_blank_themes():
+    # a whitespace-only theme must not survive as a non-empty list, or generate's
+    # is_empty guard is bypassed and a header-only shell renders.
+    respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content":
+            '{"themes":[{"title":" ","body":" "}],"fixes":[" "]}'}}]}))
+    out = await draft_release_notes("key", "model", [])
+    assert out.themes == []
+    assert out.fixes == []
+    assert out.is_empty
