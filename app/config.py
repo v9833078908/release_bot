@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     github_repo: str
     prod_version_url: str = "https://tools.herocraft.com/api/v1/version"
     openrouter_api_key: str
-    llm_model: str = "google/gemini-2.5-flash"
+    llm_model: str = "google/gemini-2.5-pro"
     deploy_poll_seconds: int = 180
     schedule_tz: str = "Europe/Moscow"
     min_features_to_publish: int = 1

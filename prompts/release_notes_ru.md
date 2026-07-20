@@ -10,6 +10,25 @@ commit log: collapse each theme into ONE line even when it was built from many
 commits. Aim for a readable draft (roughly 5-12 lines total), NEVER one line per
 commit and NEVER near-duplicate lines about the same theme.
 
+SURFACE GATE (apply FIRST, before writing anything). A change earns a line ONLY if
+it changes what the READER sees or does on a user-visible surface of the product:
+reviews/chat ingestion and its analysis (classification, sub-topics); alerts,
+digests, incidents, issues/"проблемы"; the dashboard and its views; the source
+connectors the customer sets up (Google Play, App Store, Discord, ...); the "Спроси
+своих игроков" AI chat as the reader uses it; the VIP-players board the reader
+opens. If you cannot name the exact surface the reader would notice, DROP it.
+INVISIBLE by definition - NEVER a line in ANY section (features, improvements OR
+fixes): telemetry/tracing/spans, model-quality evals, embeddings/vector plumbing,
+provider/cost/budget/availability monitoring, operator logs/reports/tooling,
+data-sync pipelines and quotas (including Devtodev metric sync), migrations,
+refactors, deploy/env wiring. The board is a surface; its Devtodev sync/metrics
+plumbing is NOT - announce the board and its activation/import, drop the sync.
+Concrete DROP examples from real commits: "insight chat AGENT/TOOL spans on OTel"
+(telemetry), "model-quality evals - corp extraction winners + Discord stage"
+(eval), "wire isolated OpenRouter embeddings" (plumbing), "structured sync logging,
+operator report" (operator tooling), "quota-safe devtodev sync" (data pipeline) -
+all DROP, none becomes a line.
+
 Language & style (Maxim Ilyahov infostyle, "Пиши, сокращай"), every text value in
 Russian:
 - Facts and reader benefit only. No hype words ("удобный", "мощный", "простой",
@@ -79,13 +98,14 @@ Sections:
   never demote it to a vague improvement line.
 - improvements: enhancements to existing things - reliability, accuracy, data
   coverage. Translated technical THEMES (e.g. resilience) go here, one line per theme.
-- fixes_summary: fold user-facing bug fixes into ONE line, joined by "; ". Same
-  rules as everywhere - reader's language, NO banned/tech words ("непарсибельный",
-  "таксономия", "идентификатор", ...), state what the reader now sees, NOT the
-  boilerplate "исправлена ошибка, из-за которой ...". A user-facing fix belongs
-  HERE, not in improvements. DROP internal fixes the reader never sees (model
-  temperature/tuning, telemetry, infra, eval harness, price tables). Return null
-  ONLY when no user-facing fix remains.
+- fixes_summary: fold the 2-3 MOST user-noticeable bug fixes into ONE line, joined
+  by "; " - never more than three, drop the rest. Same rules as everywhere -
+  reader's language, NO banned/tech words ("непарсибельный", "таксономия",
+  "идентификатор", ...), state what the reader now sees, NOT the boilerplate
+  "исправлена ошибка, из-за которой ...". A user-facing fix belongs HERE, not in
+  improvements. DROP internal fixes the reader never sees per the SURFACE GATE
+  (model temperature/tuning, telemetry, infra, eval harness, price tables, data-sync
+  plumbing). Return null ONLY when no user-facing fix remains.
   Worked example - if the range has fixes "revalidate stored evidence ids against
   taxonomy bucket", "degrade unparseable query to clarify" and "restore
   temperature=0", the correct fixes_summary is: "Цитаты-подтверждения в алертах и
