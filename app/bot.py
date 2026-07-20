@@ -76,6 +76,10 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             await message.answer(
                 f"Задеплоено {res['raw_count']} коммит(ов), но релиз-достойных нет. "
                 "Нужен conventional-commit префикс (feat/fix/perf) или запись в FEATURE_PREFIXES.")
+        elif res["result"] == "no_user_facing":
+            await message.answer(
+                f"Задеплоено {res['commit_count']} коммит(ов), но пользовательских изменений нет — "
+                "всё внутреннее (мониторинг, инфраструктура, операционные задачи). Пост не создан.")
         else:
             await message.answer(f"Нет релиз-достойных изменений (найдено {res['commit_count']}).")
 
@@ -109,6 +113,10 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             await message.answer(
                 f"Найдено {res['raw_count']} коммит(ов) в main, но релиз-достойных нет "
                 "(нужен feat/fix/perf префикс или FEATURE_PREFIXES).")
+        elif res["result"] == "no_user_facing":
+            await message.answer(
+                f"В main {res['commit_count']} коммит(ов), но пользовательских изменений нет — "
+                "всё внутреннее. Показывать нечего.")
         else:
             await message.answer(f"Нет релиз-достойных изменений (найдено {res['commit_count']}).")
 
@@ -140,6 +148,10 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
         except Exception:
             log.exception("redraft failed")
             await message.answer("Ошибка при пересборке (LLM/сеть). Попробуй ещё раз: /redraft <заметка>")
+            return
+        if text is None:
+            await message.answer("С этой заметкой пользовательских изменений не вышло — "
+                                 "черновик не изменён.")
             return
         await send_for_review(bot, store, settings, p["id"], text)
 
@@ -190,6 +202,10 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             log.exception("regenerate_draft failed")
             await bot.send_message(settings.admin_chat_id,
                                    "Ошибка при перегенерации (LLM/сеть). Нажми «Перегенерировать» ещё раз.")
+            return
+        if text is None:
+            await bot.send_message(settings.admin_chat_id,
+                                   "Перегенерация не дала пользовательских изменений — черновик не изменён.")
             return
         await send_for_review(bot, store, settings, did, text)
 

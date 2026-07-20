@@ -42,6 +42,8 @@ async def run_deploy_poll(*, store, github, get_prod_sha, settings, llm, send_re
             raise
     elif res["result"] == "no_release_worthy":
         await notify(_format_missed(res))    # raises -> cursor not advanced -> retry next tick
+    elif res["result"] == "no_user_facing":
+        await notify(_format_no_user_facing(res))   # same contract: raises -> retry next tick
     store.set_last_seen_prod_sha(prod)       # durable outcome reached for this SHA
     return res["result"]
 
@@ -51,6 +53,14 @@ def _format_missed(res: dict) -> str:
             f"({res['from_sha'][:8]}..{res['to_sha'][:8]}), релиз-достойных - 0.\n"
             "Возможно, есть изменения без conventional-commit префикса "
             "(или нужен новый FEATURE_PREFIXES). Проверь: /release_draft.\n\nКоммиты:")
+    return head + "\n" + "\n".join(f"• {s}" for s in res["dropped"])
+
+
+def _format_no_user_facing(res: dict) -> str:
+    head = (f"🔍 Задеплоено {res['commit_count']} коммит(ов) "
+            f"({res['from_sha'][:8]}..{res['to_sha'][:8]}), но пользовательских изменений нет - "
+            "всё внутреннее (мониторинг, инфраструктура, операционные задачи). Пост не создан.\n\n"
+            "Коммиты:")
     return head + "\n" + "\n".join(f"• {s}" for s in res["dropped"])
 
 

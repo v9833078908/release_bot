@@ -11,3 +11,7 @@ class Theme:
 class Post:
     themes: list[Theme] = field(default_factory=list)
     fixes: list[str] = field(default_factory=list)
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.themes and not self.fixes

@@ -183,3 +183,21 @@ async def test_notify_failure_leaves_cursor(tmp_path):
         await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
                               settings=Settings(), llm=fake_llm, send_review=send, notify=boom)
     assert store.get_last_seen_prod_sha() is None
+
+
+async def test_no_user_facing_deploy_notifies_and_sets_cursor(tmp_path):
+    store, gh, get_prod, send, sent, _ = make(tmp_path, [("s1", "feat: internal digest")], "A")
+    notes = []
+
+    async def notify(text):
+        notes.append(text)
+
+    async def empty_llm(api_key, model, commits, hint):
+        return Post()
+
+    res = await run_deploy_poll(store=store, github=gh, get_prod_sha=get_prod,
+                                settings=Settings(), llm=empty_llm, send_review=send, notify=notify)
+    assert res == "no_user_facing"
+    assert sent == []                                 # no header-only shell sent for review
+    assert len(notes) == 1                            # admin told the deploy had nothing user-facing
+    assert store.get_last_seen_prod_sha() == "A"      # durable outcome; poll won't re-fire

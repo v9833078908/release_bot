@@ -26,6 +26,10 @@ async def _fake_llm(*a, **k):
     return Post(themes=[Theme(title="F", body="B")], fixes=["melochi"])
 
 
+async def _empty_llm(*a, **k):
+    return Post()
+
+
 def _prod(sha):
     async def _get():
         return sha
@@ -151,3 +155,23 @@ async def test_no_release_worthy_when_raw_all_noise(store):
     assert res["from_sha"] == "base0" and res["to_sha"] == "P"
     assert any("chore: x" in d for d in res["dropped"])
     assert store.has_pending() is False
+
+
+async def test_no_user_facing_when_llm_drops_everything(store):
+    gh = FakeGitHub([("s1", "feat(ai): internal digest")])
+    res = await generate_draft(trigger="manual", store=store, github=gh,
+                               get_prod_sha=_prod("head1"), settings=Cfg(), llm=_empty_llm)
+    assert res["result"] == "no_user_facing"
+    assert res["commit_count"] == 1
+    assert store.has_pending() is False       # no header-only shell created
+    assert store.get_marker() == "base0"      # marker unmoved; commits fold into next range
+
+
+async def test_regenerate_empty_post_keeps_old_text(store):
+    did = store.create_draft(status="pending", trigger="manual", from_sha="base0",
+                             to_sha="head1", commit_count=1, feature_count=1,
+                             raw_commits=[{"sha": "s", "type": "feat", "scope": "x",
+                                           "subject": "y", "breaking": False}], draft_text="old")
+    text = await regenerate_draft(store=store, draft_id=did, settings=Cfg(), llm=_empty_llm)
+    assert text is None
+    assert store.get_draft(did)["draft_text"] == "old"

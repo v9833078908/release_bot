@@ -61,6 +61,13 @@ async def generate_draft(*, trigger, store, github, get_prod_sha, settings, llm,
         return {"result": "no_changes", "commit_count": 0}
 
     post = await llm(settings.openrouter_api_key, settings.llm_model, commits, hint)
+    if post.is_empty:
+        # Every commit passed the type filter, but the LLM's surface gate dropped
+        # them all (pure internal/monitoring work) - there is no user-facing post.
+        # Do NOT create a review draft: an empty render is just the header shell.
+        subjects = [f"{c.type}({c.scope or '-'}): {c.subject}" for c in commits][:15]
+        return {"result": "no_user_facing", "commit_count": n, "feature_count": fcount,
+                "from_sha": from_sha, "to_sha": to_sha, "dropped": subjects}
     text = render_html(post)
     draft_id = store.create_draft(status="pending", trigger=trigger, from_sha=from_sha, to_sha=to_sha,
                                   commit_count=n, feature_count=fcount, raw_commits=raw_dump, draft_text=text)
@@ -68,10 +75,12 @@ async def generate_draft(*, trigger, store, github, get_prod_sha, settings, llm,
             "feature_count": fcount, "text": text}
 
 
-async def regenerate_draft(*, store, draft_id, settings, llm, hint=None) -> str:
+async def regenerate_draft(*, store, draft_id, settings, llm, hint=None) -> str | None:
     d = store.get_draft(draft_id)
     commits = [Commit(**c) for c in json.loads(d["raw_commits"])]
     post = await llm(settings.openrouter_api_key, settings.llm_model, commits, hint)
+    if post.is_empty:
+        return None   # keep the existing text; caller reports "no user-facing change"
     text = render_html(post)
     store.set_draft_text(draft_id, text)
     return text
