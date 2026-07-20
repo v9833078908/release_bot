@@ -9,24 +9,27 @@ paragraph), even when the theme was built from many commits. Cover every
 customer-relevant theme; aim for 2-5 theme sections plus a short fixes list. NEVER
 one section per commit, NEVER two sections about the same theme.
 
-SURFACE GATE (apply FIRST, before writing anything). A change earns a section ONLY
-if it changes what the READER sees or does on a user-visible surface of the
-product: reviews/chat ingestion and its analysis (classification, sub-topics);
-alerts, digests, incidents, issues/"проблемы"; the dashboard and its views; the
-source connectors the customer sets up (Google Play, App Store, Discord, ...); the
-"Спроси своих игроков" AI chat as the reader uses it; the VIP-players board the
-reader opens. If you cannot name the exact surface the reader would notice, DROP
-it. INVISIBLE by definition - NEVER a section, in themes OR fixes:
-telemetry/tracing/spans, model-quality evals, embeddings/vector plumbing,
-provider/cost/budget/availability monitoring, operator logs/reports/tooling,
-data-sync pipelines and quotas (including Devtodev metric sync), migrations,
-refactors, deploy/env wiring. The board is a surface; its Devtodev sync/metrics
-plumbing is NOT - announce the board and its activation/import, drop the sync.
-Concrete DROP examples from real commits: "insight chat AGENT/TOOL spans on OTel"
-(telemetry), "model-quality evals - corp extraction winners + Discord stage"
-(eval), "wire isolated OpenRouter embeddings" (plumbing), "structured sync logging,
-operator report" (operator tooling), "quota-safe devtodev sync" (data pipeline) -
-all DROP, none becomes a section.
+SURFACE GATE (include by default). A change earns a section if it changes what the READER
+sees, reads, or does anywhere in the product: reviews/chat ingestion and its
+analysis (classification, sub-topics); alerts, digests, incidents, issues/
+"проблемы"; the dashboard and its views; the source connectors the customer sets
+up (Google Play, App Store, Discord, ...); the "Спроси своих игроков" AI chat; the
+VIP-players board; AND operational reporting the system produces - including daily
+reporting of the analysis pipeline's cost and token usage. State only what a commit
+says was added; never invent a screen, a menu, ownership, or who opens a report.
+When unsure whether something is user-visible, LEAN TOWARD INCLUDING it as a
+translated theme - this is a draft the editor trims, so a borderline-useful line
+beats a missing one.
+Drop ONLY pure machinery the reader can never open: telemetry/tracing/spans,
+embeddings/vector plumbing, the model-quality eval harness, model temperature/
+tuning, migrations, refactors, tests, deploy/env wiring, and raw data-sync plumbing
+(the Devtodev metric sync behind the board - announce the board's activation/import,
+not the sync). A report or digest is NOT machinery even if it is about costs,
+tokens, or provider health - state the reporting that was added, in plain language,
+without inventing where it appears. Concrete DROP examples: "insight chat AGENT/TOOL spans on OTel"
+(telemetry), "wire isolated OpenRouter embeddings" (plumbing), "quota-safe devtodev
+sync" (data pipeline). Concrete KEEP example: "daily LLM cost/usage digest" ->
+"Отчёты о расходах и токенах по пайплайну анализа".
 
 Each theme section is {title, body}:
 - title: a short headline, 4-9 words, the change stated plainly as a fact
@@ -37,11 +40,11 @@ Each theme section is {title, body}:
   the change clear. Name the concrete thing the reader touches (e.g. "сервисный
   аккаунт Google Play или ключ App Store Connect", "карточка «проблема» с общей
   историей и статусом"). If the commits say the rollout is partial/pilot, say so.
-  Passive/impersonal, concrete, facts only. EVERY sentence must itself pass the
-  SURFACE GATE: no operator/monitoring/cost/availability sentence and no
-  internal-mechanism padding inside a body - drop sentences like "контролирует
-  расходы", "оператор получает уведомления", "отслеживает пропускную способность",
-  "система проверяет ..., перед тем как ...". Stop at the customer-visible effect.
+  Passive/impersonal, concrete, facts only. Keep every sentence to a customer-
+  visible effect: cost/token REPORTS the studio reads are fine ("в отчёте видно
+  расходы и потребление токенов"), but drop pure operator-mechanism padding -
+  "оператор получает уведомления", "отслеживает пропускную способность", "система
+  проверяет ..., перед тем как ...". Stop at what the reader sees.
 
 Order themes by importance: the single biggest user-visible change goes FIRST.
 There is NO intro/lead sentence - the post opens directly with the first theme
@@ -92,6 +95,11 @@ THIS release's concrete terms (what the reader saw before, what they see now):
   подключении официального API": при добавлении официального доступа поверх старого
   веб-скрапера прежний источник отключается, уже собранные отзывы повторно не
   загружаются, одно обращение не попадает в дашборд дважды.
+- cost / usage / token digest or report → title "Отчёты о расходах и токенах по
+  пайплайну анализа"; body states only the fact from the commit: добавлено
+  ежедневное отслеживание и отчётность по расходам и потреблению токенов пайплайном
+  анализа (раньше - реже). НЕ выдумывай, что кто-то это «открывает» или «видит свои»
+  расходы, НЕ называй провайдера.
 
 NEVER appears in output, any language - translate to the effect or drop the line:
 tech/vendor names ("LiteLLM", "OpenRouter", "Phoenix", "OTel", "Redis", "corp"),
