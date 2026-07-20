@@ -24,7 +24,7 @@ class Settings:  # duck-typed; only fields generate_draft reads
 
 
 async def fake_llm(api_key, model, commits, hint):
-    return Post(intro="i", themes=[Theme(title="f", body="b")], fixes=[])
+    return Post(themes=[Theme(title="f", body="b")], fixes=[])
 
 
 async def _noop(text):

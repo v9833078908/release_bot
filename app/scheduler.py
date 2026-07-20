@@ -59,7 +59,7 @@ def build_scheduler(bot, store, settings) -> AsyncIOScheduler:
 
     async def deploy_job() -> None:
         async def _send(did, text):
-            await send_for_review(bot, store, settings.admin_chat_id, did, text)
+            await send_for_review(bot, store, settings, did, text)
 
         async def _notify(text):
             await bot.send_message(settings.admin_chat_id, text)   # plain text, admin DM only

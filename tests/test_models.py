@@ -2,5 +2,5 @@ from app.models import Post
 
 
 def test_post_defaults():
-    p = Post(intro="hi")
+    p = Post()
     assert p.themes == [] and p.fixes == []

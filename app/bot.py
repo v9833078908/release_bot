@@ -1,4 +1,3 @@
-import html
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -33,11 +32,15 @@ def _review_kb(draft_id: int) -> InlineKeyboardMarkup:
     ]])
 
 
-async def send_for_review(bot, store, admin_chat_id, draft_id: int, text: str) -> None:
-    chunks = split_message(text)
+async def send_for_review(bot, store, settings, draft_id: int, text: str) -> None:
+    # Preview exactly as it will publish: next release number + build footer.
+    d = store.get_draft(draft_id)
+    when = datetime.now(ZoneInfo(settings.schedule_tz)).strftime("%d.%m.%Y")
+    display = finalize_publish(text, store.next_release_no(), d["to_sha"], when)
+    chunks = split_message(display)
     for chunk in chunks[:-1]:
-        await bot.send_message(admin_chat_id, chunk, parse_mode="HTML")
-    msg = await bot.send_message(admin_chat_id, chunks[-1], parse_mode="HTML",
+        await bot.send_message(settings.admin_chat_id, chunk, parse_mode="HTML")
+    msg = await bot.send_message(settings.admin_chat_id, chunks[-1], parse_mode="HTML",
                                  reply_markup=_review_kb(draft_id))
     store.set_admin_msg(draft_id, msg.message_id)
 
@@ -64,7 +67,7 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             await message.answer("Ошибка при сборке черновика (LLM/сеть). Попробуй ещё раз: /release_draft")
             return
         if res["result"] == "drafted":
-            await send_for_review(bot, store, settings.admin_chat_id, res["draft_id"], res["text"])
+            await send_for_review(bot, store, settings, res["draft_id"], res["text"])
         elif res["result"] == "no_prod_sha":
             await message.answer("Не удалось получить prod SHA (/version недоступен).")
         elif res["result"] == "no_changes":
@@ -99,7 +102,7 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             await message.answer(
                 "👁 Превью недеплоенных изменений (main). Публикация станет доступна "
                 "только после того, как они окажутся на проде.")
-            await send_for_review(bot, store, settings.admin_chat_id, res["draft_id"], res["text"])
+            await send_for_review(bot, store, settings, res["draft_id"], res["text"])
         elif res["result"] == "no_changes":
             await message.answer("main не опережает маркер — показывать нечего.")
         elif res["result"] == "no_release_worthy":
@@ -138,7 +141,7 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             log.exception("redraft failed")
             await message.answer("Ошибка при пересборке (LLM/сеть). Попробуй ещё раз: /redraft <заметка>")
             return
-        await send_for_review(bot, store, settings.admin_chat_id, p["id"], text)
+        await send_for_review(bot, store, settings, p["id"], text)
 
     @dp.callback_query(F.data.startswith("pub:"))
     async def on_publish(cb: CallbackQuery) -> None:
@@ -188,7 +191,7 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
             await bot.send_message(settings.admin_chat_id,
                                    "Ошибка при перегенерации (LLM/сеть). Нажми «Перегенерировать» ещё раз.")
             return
-        await send_for_review(bot, store, settings.admin_chat_id, did, text)
+        await send_for_review(bot, store, settings, did, text)
 
     @dp.callback_query(F.data.startswith("cx:"))
     async def on_cancel(cb: CallbackQuery) -> None:
@@ -213,13 +216,20 @@ def build_dispatcher(bot: Bot, store, settings) -> Dispatcher:
     @dp.message(EditState.waiting_for_text)
     async def on_edit_text(message: Message, state: FSMContext) -> None:
         did = (await state.get_data())["draft_id"]
-        await state.clear()
         d = store.get_draft(did)
         if not d or d["status"] != "pending":
+            await state.clear()
             await message.answer("Черновик неактуален.")
             return
-        escaped = html.escape(message.text or "", quote=False)
-        store.set_draft_text(did, escaped)
-        await send_for_review(bot, store, settings.admin_chat_id, did, escaped)
+        if not message.text:
+            await message.answer("Пришли текст ответным сообщением. Нажми «Правка» ещё раз.")
+            await state.clear()
+            return
+        await state.clear()
+        # html_text keeps the bold/italic the editor applied in Telegram (copy-edit
+        # of the bolded draft preserves formatting); plain html.escape dropped it.
+        new_text = message.html_text
+        store.set_draft_text(did, new_text)
+        await send_for_review(bot, store, settings, did, new_text)
 
     return dp

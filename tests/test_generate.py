@@ -23,7 +23,7 @@ class Cfg:
 
 
 async def _fake_llm(*a, **k):
-    return Post(intro="I", themes=[Theme(title="F", body="B")], fixes=["melochi"])
+    return Post(themes=[Theme(title="F", body="B")], fixes=["melochi"])
 
 
 def _prod(sha):
@@ -85,7 +85,7 @@ async def test_regenerate_reuses_cached_commits(store):
 
     async def llm(_key, _model, commits, hint=None):
         assert commits[0].subject == "y" and hint == "короче"
-        return Post(intro="NEW", themes=[], fixes=[])
+        return Post(themes=[Theme(title="NEW", body="b")], fixes=[])
 
     text = await regenerate_draft(store=store, draft_id=did, settings=Cfg(), llm=llm, hint="короче")
     assert "NEW" in text

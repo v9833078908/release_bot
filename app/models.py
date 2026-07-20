@@ -9,6 +9,5 @@ class Theme:
 
 @dataclass
 class Post:
-    intro: str
     themes: list[Theme] = field(default_factory=list)
     fixes: list[str] = field(default_factory=list)

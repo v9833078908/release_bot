@@ -11,7 +11,7 @@ def _esc(s: str) -> str:
 
 
 def render_html(post: Post) -> str:
-    parts = ["<b>🚀 Game Pulse — что нового</b>", "", _esc(post.intro)]
+    parts = ["<b>🚀 Game Pulse — что нового</b>"]
     for t in post.themes:
         parts += ["", f"<b>{_esc(t.title)}</b>", _esc(t.body)]
     if post.fixes:

@@ -43,8 +43,9 @@ Each theme section is {title, body}:
   расходы", "оператор получает уведомления", "отслеживает пропускную способность",
   "система проверяет ..., перед тем как ...". Stop at the customer-visible effect.
 
-Order themes by importance: the single biggest user-visible change goes FIRST, and
-the intro names that same change.
+Order themes by importance: the single biggest user-visible change goes FIRST.
+There is NO intro/lead sentence - the post opens directly with the first theme
+section (its title). Do not emit a summary line above the sections.
 
 Language & style (Maxim Ilyahov infostyle, "Пиши, сокращай"), every value Russian:
 - Facts and reader benefit only. No hype words ("удобный", "мощный", "простой",
@@ -80,9 +81,13 @@ THIS release's concrete terms (what the reader saw before, what they see now):
   переключается между провайдерами модели при перегрузке или отказе одного из них,
   что снижает задержки в классификации и алертах.
 - issue grouping / issue-grain / clustering / resolution → "Похожие жалобы
-  объединяются в проблемы": похожие сообщения собираются в одну карточку «проблема»
-  с общей историей и статусом, раньше каждый всплеск был отдельным инцидентом.
-  Отметь постепенное/пилотное подключение, если об этом говорят коммиты.
+  объединяются в проблемы": в алертах и ежедневном дайджесте однотипные жалобы
+  теперь сводятся в одну проблему - один алерт на проблему с объединённым ярлыком,
+  а в дайджесте похожие обращения собраны под общим заголовком, вместо отдельного
+  алерта на каждый всплеск. Работает во всех проектах. ACCURACY: группировка видна
+  ТОЛЬКО в алертах и дайджесте - НЕ пиши про «карточку проблему» в дашборде, экран
+  с историей/статусом проблемы или «управление инцидентами как одним целым»: такого
+  интерфейса НЕТ.
 - source/connector management (official over scraped) → "Отзывы не задваиваются при
   подключении официального API": при добавлении официального доступа поверх старого
   веб-скрапера прежний источник отключается, уже собранные отзывы повторно не
@@ -124,23 +129,17 @@ these rules for the items it names - include/emphasize them, name a provider or
 tool by name if asked - but never the infostyle (still passive, concrete, no hype,
 no imperative).
 
-intro: one factual sentence naming the single biggest USER-VISIBLE change of THIS
-release, passive and concrete. Derive it from the actual commits; it must name the
-same change as the FIRST theme. Not "обновления и улучшения"; no greeting, no
-windup.
-
 Before returning, re-check your JSON: every section passes the SURFACE GATE; themes
-ordered by importance with the biggest first and matching the intro; each title a
-short plain headline and each body 2-4 concrete customer sentences; mechanics and
-banned names gone (translated or dropped); existing features not re-announced; at
-most three fixes. Fix any violation before answering.
+ordered by importance with the biggest first; each title a short plain headline and
+each body 2-3 concrete customer sentences; mechanics and banned names gone
+(translated or dropped); existing features not re-announced; at most three fixes.
+Fix any violation before answering.
 
 Response format (JSON only, no markdown):
 {
-  "intro": "one factual sentence, Russian",
   "themes": [
     {"title": "short plain headline, Russian, no period",
-     "body": "2-4 sentence explanation for the reader, Russian"}
+     "body": "2-3 sentence explanation for the reader, Russian"}
   ],
   "fixes": ["one full-sentence user-facing fix, Russian", "..."]
 }

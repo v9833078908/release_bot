@@ -35,7 +35,6 @@ def _parse_post(content: str) -> Post:
         if (t.get("title") or t.get("body"))
     ]
     return Post(
-        intro=data.get("intro", ""),
         themes=themes,
         fixes=[f.strip() for f in (data.get("fixes") or []) if f and f.strip()],
     )
