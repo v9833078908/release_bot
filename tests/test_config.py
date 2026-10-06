@@ -8,11 +8,12 @@ def test_settings_load_from_env(monkeypatch):
         "INITIAL_MARKER_SHA": "deadbeef",
     }.items():
         monkeypatch.setenv(k, v)
+    monkeypatch.delenv("PROD_VERSION_URL", raising=False)
     s = Settings(_env_file=None)
     assert s.admin_chat_id == 42
     assert s.min_features_to_publish == 1
     assert s.deploy_poll_seconds == 180
-    assert s.prod_version_url.endswith("/api/v1/version")
+    assert s.prod_version_url == "https://app.game-pulse.pro/api/v1/version"
     assert s.feature_prefix_list == ["VIP Board"]
 
 

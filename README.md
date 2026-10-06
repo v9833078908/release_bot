@@ -120,5 +120,17 @@ precedence over a prefix.
 
 ### Prod deploy
 
-On the VPS, checkout this repo at `/opt/release_bot`, populate `.env`, then
-`scripts/redeploy.sh` (fetch + hard reset to `origin/main` + rebuild).
+Production runs on the new Game Pulse VM, `dev01@162.55.137.149:1996`,
+at `/opt/release_bot`. `PROD_VERSION_URL` is
+`https://app.game-pulse.pro/api/v1/version`.
+
+For a local deploy, copy `.env.local.example` to `.env.local` and configure
+`VPS_SSH_IDENTITY_FILE` with an authorized SSH key (`~/` paths are supported).
+Run `scripts/ship.sh` to push and deploy, or `scripts/ship.sh --no-push` to
+redeploy the remote main. The script refuses an old host/user/port before any
+push or SSH. Key auth does not require `sshpass` or a password. Legacy password
+transport is available only with an empty identity path and `sshpass` installed.
+
+On the VM, populate `.env` and run `scripts/redeploy.sh` (fetch + hard reset
+to `origin/main` + rebuild). Only one bot may poll Telegram: preserve its SQLite
+state and stop the previous instance before starting the replacement.

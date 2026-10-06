@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     admin_chat_id: int
     github_token: str
     github_repo: str
-    prod_version_url: str = "https://tools.herocraft.com/api/v1/version"
+    prod_version_url: str = "https://app.game-pulse.pro/api/v1/version"
     openrouter_api_key: str
     llm_model: str = "anthropic/claude-haiku-4.5"
     deploy_poll_seconds: int = 180
