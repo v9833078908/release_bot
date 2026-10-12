@@ -1,6 +1,7 @@
 """Hermetic deploy targeting and key-auth regression tests."""
 
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -29,8 +30,33 @@ def test_ship_key_auth_expands_tilde_without_password(tmp_path: Path) -> None:
     assert "IdentitiesOnly=yes" in args
 
 
+@pytest.mark.parametrize("password_auth", [False, True])
+def test_ship_requires_vpn_proxy_with_space_path(
+    tmp_path: Path, password_auth: bool
+) -> None:
+    extra = "VPS_SSH_IDENTITY_FILE=\nVPS_PASSWORD=test-password\n" if password_auth else ""
+    result, calls, _ = _run_ship(tmp_path, extra)
+    assert result.returncode == 0, result.stderr
+    args = calls.read_text().splitlines()
+    proxies = [
+        arg.removeprefix("ProxyCommand=")
+        for arg in args
+        if arg.startswith("ProxyCommand=")
+    ]
+    assert len(proxies) == 1
+    assert "ConnectTimeout=15" in args
+    assert shlex.split(proxies[0]) == [
+        "bash",
+        str(tmp_path / "repo with spaces" / "scripts" / "vpn_ssh_proxy.sh"),
+        "%h",
+        "%p",
+    ]
+    assert "dev01@162.55.137.149" in args
+    assert args[args.index("-p") + 1] == "1996"
+
+
 def _run_ship(tmp_path: Path, extra: str):
-    repo = tmp_path / "repo"
+    repo = tmp_path / "repo with spaces"
     scripts = repo / "scripts"
     scripts.mkdir(parents=True)
     source = Path(__file__).resolve().parents[1] / "scripts" / "ship.sh"
@@ -49,9 +75,14 @@ def _run_ship(tmp_path: Path, extra: str):
     calls = tmp_path / "remote.log"
     for name in ("ssh", "sshpass", "git"):
         stub = fakebin / name
+        behavior = {
+            "ssh": "exit 0\n",
+            "sshpass": 'shift; exec "$@"\n',
+            "git": "exit 23\n",
+        }[name]
         stub.write_text(
             f"#!/bin/sh\nprintf '%s\\n' \"$@\" > {calls}\n"
-            + ("exit 0\n" if name == "ssh" else "exit 23\n")
+            + behavior
         )
         stub.chmod(0o755)
     env = dict(

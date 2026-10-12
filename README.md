@@ -131,6 +131,18 @@ redeploy the remote main. The script refuses an old host/user/port before any
 push or SSH. Key auth does not require `sshpass` or a password. Legacy password
 transport is available only with an empty identity path and `sshpass` installed.
 
+All deployment SSH traffic goes through the existing Docker container
+`hc-vpn-gw` using `scripts/vpn_ssh_proxy.sh` as an OpenSSH `ProxyCommand`.
+The helper requires the existing gateway to be running with its SOCKS5 port
+bound to `127.0.0.1:11080`, and checks its `tun0` tunnel and internal VPN peer
+`10.0.0.1`. It adds a host route through `tun0` for the SSH destination and a
+less-preferred blackhole route to prevent direct egress if the tunnel drops,
+then relays SSH through the gateway's SOCKS5 endpoint using macOS `/usr/bin/nc`.
+If the gateway or VPN is unavailable, deployment fails without a direct SSH
+fallback. The gateway is shared with sibling projects; this script does not
+start, recreate, or stop it. Laptop SSH keys and passwords stay on the laptop;
+the gateway only relays the encrypted SSH stream.
+
 On the VM, populate `.env` and run `scripts/redeploy.sh` (fetch + hard reset
 to `origin/main` + rebuild). Only one bot may poll Telegram: preserve its SQLite
 state and stop the previous instance before starting the replacement.

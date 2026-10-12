@@ -61,7 +61,8 @@ if [ "$DO_PUSH" = 1 ]; then
     git push origin main
 fi
 
-SSH_OPTS=(-o StrictHostKeyChecking=no -o ServerAliveInterval=20 -p "$VPS_PORT")
+printf -v VPN_PROXY_COMMAND 'bash %q %%h %%p' "$PWD/scripts/vpn_ssh_proxy.sh"
+SSH_OPTS=(-o "ProxyCommand=$VPN_PROXY_COMMAND" -o StrictHostKeyChecking=no -o ServerAliveInterval=20 -o ConnectTimeout=15 -p "$VPS_PORT")
 
 echo "==> ssh $VPS_USER@$VPS_HOST -> /opt/release_bot/scripts/redeploy.sh"
 if [ -n "$VPS_SSH_IDENTITY_FILE" ]; then
