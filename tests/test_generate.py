@@ -175,3 +175,56 @@ async def test_regenerate_empty_post_keeps_old_text(store):
     text = await regenerate_draft(store=store, draft_id=did, settings=Cfg(), llm=_empty_llm)
     assert text is None
     assert store.get_draft(did)["draft_text"] == "old"
+
+
+class RichFakeGitHub(FakeGitHub):
+    def __init__(self, commits, files_by_sha, flags_by_ref):
+        super().__init__(commits)
+        self._files = files_by_sha
+        self._flags = flags_by_ref
+
+    async def enrich_commit_files(self, shas):
+        return {s: self._files.get(s, ()) for s in shas}
+
+    async def file_text(self, path, ref):
+        if path == "infra/rollout-flags.env":
+            return self._flags.get(ref)
+        return None
+
+
+async def test_generate_enriches_files_drops_docs_and_keeps_rollout_context_for_regenerate(store):
+    gh = RichFakeGitHub(
+        commits=[
+            ("s1", "Add scoped store review CSV and XLSX exports"),
+            ("s2", "Add docs note"),
+        ],
+        files_by_sha={
+            "s1": ("frontend/src/pages/StoreRatingsPage.jsx",),
+            "s2": ("docs/plans/foo.md",),
+        },
+        flags_by_ref={
+            "base0": "MCP_ENABLED=false\n",
+            "head1": "MCP_ENABLED=false\nCORPUS_EXPLORE_ENABLED=*\n",
+        },
+    )
+    seen = []
+
+    async def rich_llm(_key, _model, commits, hint=None, *, context=None):
+        seen.append((commits, context, hint))
+        return Post(themes=[Theme(title="Экспорт отзывов", body="Можно скачать CSV")], fixes=[])
+
+    res = await generate_draft(trigger="deploy", store=store, github=gh,
+                               get_prod_sha=_prod("head1"), settings=Cfg(), llm=rich_llm, to_sha="head1")
+    assert res["result"] == "drafted"
+    assert res["commit_count"] == 1
+    commits0, ctx0, _ = seen[0]
+    assert [c.sha for c in commits0] == ["s1"]
+    assert "/store-ratings" in commits0[0].surfaces[0]
+    assert "MCP_ENABLED: OFF (false)" in ctx0
+    assert "CORPUS_EXPLORE_ENABLED: added = ALL projects (*)" in ctx0
+
+    # Regenerate preserves rollout_context from DB
+    await regenerate_draft(store=store, draft_id=res["draft_id"], settings=Cfg(), llm=rich_llm, hint="короче")
+    commits1, ctx1, hint1 = seen[1]
+    assert [c.sha for c in commits1] == ["s1"]
+    assert ctx1 == ctx0 and hint1 == "короче"

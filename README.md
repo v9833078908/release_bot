@@ -109,14 +109,14 @@ When prod's SHA advances (a successful deploy), the bot drafts release notes ove
   release-worthy commits and omits the non-matching ones without a per-commit alert.
 - There is no weekly job - posting is purely deploy-driven, so a cancelled draft is never recreated on its own; only the next deploy rebuilds its range. `SCHEDULE_TZ` still sets the footer date timezone.
 
-### Commit conventions
+### Commit collection & filtering
 
-Release notes are built from conventional commits (`feat`/`fix`/`perf`; other types
-and the noise scopes are dropped). Game Pulse also ships user-facing features under
-non-conventional prefixes like `VIP Board: ...`; list those in `FEATURE_PREFIXES`
-(comma-separated, default `VIP Board`) and a `"<prefix>: subject"` line is promoted
-to a `feat` (scope = the prefix). Recognized conventional release types always take
-precedence over a prefix.
+Release notes are built from the deployed GitHub commit range (`marker..prod`):
+- Conventional release commits (`feat`/`fix`/`perf`), allowlisted `FEATURE_PREFIXES`, and natural-language product commits (`Add ...`, `Fix ...`, etc.) are kept; pure engineering noise (`docs`, `test`, `chore`, `refactor`, `eval*`, `website`, `cases-prototype`, bare sync merges) is dropped.
+- Candidate commits are enriched with changed file paths via GitHub so commits touching only docs, tests, scripts, or the marketing landing page are dropped, and remaining changes carry exact product surface tags (`/store-ratings`, `/alerts`, `/replies`, etc.).
+- High-volume internal scopes are collapsed automatically so large branch merges do not drown out user-facing changes.
+- `infra/rollout-flags.env` at `from_sha` and `to_sha` is summarized (without UUIDs or project names) so disabled (`false`/empty) features are not prematurely announced.
+- Generated items must cite `source_shas` present in the release; ungrounded items are discarded at parse time.
 
 ### Prod deploy
 

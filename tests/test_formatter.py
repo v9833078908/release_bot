@@ -18,7 +18,7 @@ def test_render_omits_empty_themes_and_fixes():
 
 def test_render_includes_fixes_as_bullets():
     out = render_html(Post(themes=[], fixes=["правка один", "правка два"]))
-    assert "<b>🐞 Исправления</b>" in out
+    assert "<b>🐞 Исправления и доработки</b>" in out
     assert "• правка один" in out
     assert "• правка два" in out
 

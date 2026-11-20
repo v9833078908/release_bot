@@ -15,7 +15,7 @@ def render_html(post: Post) -> str:
     for t in post.themes:
         parts += ["", f"<b>{_esc(t.title)}</b>", _esc(t.body)]
     if post.fixes:
-        parts += ["", "<b>🐞 Исправления</b>", *[f"• {_esc(x)}" for x in post.fixes]]
+        parts += ["", "<b>🐞 Исправления и доработки</b>", *[f"• {_esc(x)}" for x in post.fixes]]
     return "\n".join(parts)
 
 

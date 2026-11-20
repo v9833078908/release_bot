@@ -27,6 +27,7 @@ drafts = Table(
     Column("commit_count", Integer),
     Column("feature_count", Integer),
     Column("raw_commits", Text),
+    Column("rollout_context", Text),
     Column("draft_text", Text),
     Column("admin_msg_id", Integer),
     Column("channel_msg_id", Integer),
@@ -49,6 +50,8 @@ class Store:
             cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(drafts)")}
             if "release_no" not in cols:
                 conn.exec_driver_sql("ALTER TABLE drafts ADD COLUMN release_no INTEGER")
+            if "rollout_context" not in cols:
+                conn.exec_driver_sql("ALTER TABLE drafts ADD COLUMN rollout_context TEXT")
         with self.engine.begin() as conn:
             pcols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(publish_state)")}
             if "last_seen_prod_sha" not in pcols:
@@ -123,13 +126,13 @@ class Store:
                          .values(status="pending", updated_at=_now()))
 
     def create_draft(self, *, status, trigger, from_sha, to_sha, commit_count,
-                     feature_count, raw_commits, draft_text) -> int:
+                     feature_count, raw_commits, draft_text, rollout_context="") -> int:
         with self.engine.begin() as conn:
             res = conn.execute(insert(drafts).values(
                 status=status, trigger=trigger, from_sha=from_sha, to_sha=to_sha,
                 commit_count=commit_count, feature_count=feature_count,
-                raw_commits=json.dumps(raw_commits), draft_text=draft_text,
-                created_at=_now(), updated_at=_now()))
+                raw_commits=json.dumps(raw_commits), rollout_context=rollout_context or "",
+                draft_text=draft_text, created_at=_now(), updated_at=_now()))
             return res.inserted_primary_key[0]
 
     def get_draft(self, draft_id: int) -> dict | None:
